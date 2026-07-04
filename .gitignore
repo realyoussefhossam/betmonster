@@ -1,9 +1,13 @@
 # Go binaries
 api/api
 api/*.exe
+gateway
+wallet
+*.exe
 
 # Air live-reload
 api/tmp/
+tmp/
 
 # Environment
 .env

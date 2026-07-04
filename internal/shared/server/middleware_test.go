@@ -1,4 +1,4 @@
-package middleware_test
+package server_test
 
 import (
 	"log/slog"
@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/realyoussefhossam/better-auth-go/api/middleware"
+	"github.com/realyoussefhossam/betmonster/internal/shared/server"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +16,7 @@ func TestLogging(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	testHandler := middleware.Logging(logger, handler)
+	testHandler := server.Logging(logger, handler)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
