@@ -22,6 +22,60 @@ export interface AuthVerifyResponse {
   email?: string;
 }
 
+export interface BalanceResponse {
+  currency: string;
+  balance: string;
+}
+
+export interface Transaction {
+  id: string;
+  userId: string;
+  walletId: string;
+  type: string;
+  amount: string;
+  balanceBefore: string;
+  balanceAfter: string;
+  status: string;
+  referenceId: string;
+  metadata: string;
+  createdAt: string;
+}
+
+export interface TransactionsResponse {
+  transactions: Transaction[];
+}
+
+export interface DepositAddressResponse {
+  address: string;
+  chain: string;
+  currency: string;
+}
+
+export interface WithdrawalResponse {
+  withdrawalId: string;
+  status: string;
+}
+
+export interface WithdrawalRequest {
+  id: string;
+  userId: string;
+  currency: string;
+  amount: string;
+  destinationAddress: string;
+  chain: string;
+  status: string;
+  txHash: string;
+  createdAt: string;
+}
+
+export interface PendingWithdrawalsResponse {
+  withdrawals: WithdrawalRequest[];
+}
+
+export interface ReviewWithdrawalResponse {
+  status: string;
+}
+
 class GoApiClient {
   private baseUrl: string;
   private cachedToken: string | null;
@@ -100,6 +154,50 @@ class GoApiClient {
   async verifyAuth(): Promise<ApiResponse<AuthVerifyResponse>> {
     return this.request("/api/verify", {
       method: "GET",
+    });
+  }
+
+  async getBalance(currency: string = "USDT"): Promise<ApiResponse<BalanceResponse>> {
+    return this.request(`/api/wallet/balance?currency=${currency}`, { method: "GET" });
+  }
+
+  async getTransactions(): Promise<ApiResponse<TransactionsResponse>> {
+    return this.request("/api/wallet/transactions", { method: "GET" });
+  }
+
+  async getDepositAddress(
+    currency: string = "USDT",
+    chain: string = "base",
+  ): Promise<ApiResponse<DepositAddressResponse>> {
+    return this.request(`/api/wallet/deposit-address?currency=${currency}&chain=${chain}`, {
+      method: "GET",
+    });
+  }
+
+  async requestWithdrawal(body: {
+    currency: string;
+    amount: string;
+    destinationAddress: string;
+    chain: string;
+  }): Promise<ApiResponse<WithdrawalResponse>> {
+    return this.request("/api/wallet/withdraw", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async listPendingWithdrawals(): Promise<ApiResponse<PendingWithdrawalsResponse>> {
+    return this.request("/api/admin/withdrawals", { method: "GET" });
+  }
+
+  async reviewWithdrawal(body: {
+    withdrawalId: string;
+    action: "approve" | "reject";
+    txHash?: string;
+  }): Promise<ApiResponse<ReviewWithdrawalResponse>> {
+    return this.request("/api/admin/withdrawals/review", {
+      method: "POST",
+      body: JSON.stringify({ ...body, reviewedBy: "admin" }),
     });
   }
 }
