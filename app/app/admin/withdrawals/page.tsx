@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,12 +11,13 @@ import {
 
 export default function AdminWithdrawalsPage() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState("");
 
   async function load() {
     setLoading(true);
+    setError(null);
     const res = await goApiClient.listPendingWithdrawals();
     if (res.error) {
       setError(res.error);
@@ -25,10 +26,6 @@ export default function AdminWithdrawalsPage() {
     }
     setLoading(false);
   }
-
-  useEffect(() => {
-    load();
-  }, []);
 
   async function review(id: string, action: "approve" | "reject") {
     const res = await goApiClient.reviewWithdrawal({
@@ -47,6 +44,11 @@ export default function AdminWithdrawalsPage() {
     <div className="container mx-auto max-w-4xl py-8 space-y-6">
       <h1 className="text-3xl font-bold">Pending Withdrawals</h1>
       {error && <p className="text-red-500">{error}</p>}
+      <div className="flex gap-4">
+        <Button onClick={load} disabled={loading}>
+          {loading ? "Loading..." : "Load Pending Withdrawals"}
+        </Button>
+      </div>
       <div className="mb-4">
         <Label htmlFor="txHash">Transaction Hash (for approve)</Label>
         <Input

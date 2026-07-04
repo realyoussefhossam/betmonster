@@ -13,10 +13,11 @@ tmp/
 .env
 .env.local
 
-# Node
+# Node.js app
 app/node_modules/
 app/.next/
 app/out/
+app/lib/generated/
 
 # OS
 .DS_Store
