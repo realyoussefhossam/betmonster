@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type memoryStore struct {
@@ -88,7 +89,47 @@ func (s *memoryStore) CreditWallet(ctx context.Context, userID, currency, amount
 }
 
 func (s *memoryStore) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string) (*Transaction, error) {
-	return nil, errors.New("not implemented in unit test stub")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := s.walletKey(userID, currency)
+	w, ok := s.wallets[key]
+	if !ok {
+		return nil, errors.New("wallet not found")
+	}
+
+	currentBalance, err := decimal.NewFromString(w.Balance)
+	if err != nil {
+		return nil, err
+	}
+	debitAmount, err := decimal.NewFromString(amount)
+	if err != nil {
+		return nil, err
+	}
+	if currentBalance.LessThan(debitAmount) {
+		return nil, errors.New("insufficient balance")
+	}
+
+	newBalance := subDecimal(w.Balance, amount)
+	txn := &Transaction{
+		ID:            uuid.NewString(),
+		UserID:        userID,
+		WalletID:      w.ID,
+		Type:          "withdrawal",
+		Amount:        amount,
+		BalanceBefore: w.Balance,
+		BalanceAfter:  newBalance,
+		Status:        "completed",
+		ReferenceID:   referenceID,
+		CreatedAt:     time.Now(),
+	}
+	if referenceID != "" {
+		s.txns[referenceID] = txn
+	}
+	w.Balance = newBalance
+	w.Version++
+	w.UpdatedAt = time.Now()
+	return txn, nil
 }
 
 func (s *memoryStore) ReverseDebit(ctx context.Context, transactionID string) (*Transaction, error) {
