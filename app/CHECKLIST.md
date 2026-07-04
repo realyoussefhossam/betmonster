@@ -65,4 +65,8 @@
   - [x] Sign In User
 - [x] Create login page route `app/(auth)/login/page.tsx` (with back button + LoginForm)
 - [x] Fix `go-api-client.ts` import (named `authClient` not default) + typecheck
+- [x] Strip register/login/sign-out components to only what exists (removed react-hook-form, zod, OAuth buttons, error banners, non-existent fonts/variants/routes)
+- [x] Strip register/login pages to only what exists (removed OAuth buttons, error banners, non-existent CSS vars/fonts)
+- [x] Create `components/go-api-test.tsx` (client component testing proxy → Go `/api/verify` + `/api/me` with toast + JSON output)
+- [x] Add `<GoApiTest />` to profile page
 - [ ] FINISH PART 1

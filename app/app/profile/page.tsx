@@ -1,4 +1,5 @@
 import { SignOutButton } from "@/components/sign-out-button";
+import { GoApiTest } from "@/components/go-api-test";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { ArrowLeftIcon } from "lucide-react";
@@ -29,6 +30,8 @@ export default async function Page() {
         <pre className="text-sm overflow-clip">
           {JSON.stringify(session, null, 2)}
         </pre>
+
+        <GoApiTest />
       </div>
     </div>
   );
