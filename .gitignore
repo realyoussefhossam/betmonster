@@ -1,0 +1,19 @@
+# Go binaries
+api/api
+api/*.exe
+
+# Air live-reload
+api/tmp/
+
+# Environment
+.env
+.env.local
+
+# Node
+app/node_modules/
+app/.next/
+app/out/
+
+# OS
+.DS_Store
+.devin/

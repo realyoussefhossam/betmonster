@@ -1,0 +1,16 @@
+# Binaries
+api
+*.exe
+
+# Air live-reload
+tmp/
+tmp
+
+# Environment
+.env
+.env.local
+
+# Editor/OS
+.DS_Store
+.idea/
+.vscode/
