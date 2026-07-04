@@ -7,15 +7,15 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 go build -o bin/wallet ./cmd/wallet
+RUN CGO_ENABLED=0 go build -o bin/wallet-service ./cmd/wallet
 
 FROM alpine:3.21
 
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
-COPY --from=builder /app/bin/wallet ./wallet
+COPY --from=builder /app/bin/wallet-service ./wallet-service
 COPY --from=builder /app/wallet/migrations ./wallet/migrations
 
 EXPOSE 8081 50051
-ENTRYPOINT ["./wallet"]
+ENTRYPOINT ["./wallet-service"]

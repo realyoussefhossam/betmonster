@@ -1,0 +1,2 @@
+CREATE DATABASE better_auth;
+GRANT ALL PRIVILEGES ON DATABASE better_auth TO wallet;

@@ -36,4 +36,5 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+COPY --from=builder /app/scripts ./scripts
+CMD ["./scripts/start.sh"]

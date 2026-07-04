@@ -6,15 +6,20 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
-	"github.com/lestrrat-go/httprc/v3"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 const (
 	jwksRefreshInterval = 15 * time.Minute
+	jwksFetchTimeout    = 5 * time.Second
+)
+
+var (
+	ErrMissingUserID = errors.New("missing user id")
 )
 
 type User struct {
@@ -23,29 +28,64 @@ type User struct {
 	Name  string
 }
 
-var (
-	ErrMissingUserID = errors.New("missing user id")
-)
-
 type JWKSClient struct {
-	cache   *jwk.Cache
-	jwksURL string
+	mu       sync.RWMutex
+	jwksURL  string
+	keyset   jwk.Set
+	fetched  time.Time
+	httpClient *http.Client
 }
 
 func NewJWKSClient(ctx context.Context, jwksURL string) (*JWKSClient, error) {
-	client := httprc.NewClient()
-	cache, err := jwk.NewCache(ctx, client)
+	c := &JWKSClient{
+		jwksURL:    jwksURL,
+		httpClient: &http.Client{Timeout: jwksFetchTimeout},
+	}
+	// Attempt an initial fetch but do not block startup on it.
+	// The first request will retry if the fetch failed or if keys are stale.
+	if err := c.refresh(ctx); err != nil {
+		// Continue; keys will be fetched lazily on the first request.
+		_ = err
+	}
+	return c, nil
+}
+
+func (c *JWKSClient) refresh(ctx context.Context) error {
+	keyset, err := jwk.Fetch(ctx, c.jwksURL, jwk.WithHTTPClient(c.httpClient))
 	if err != nil {
-		return nil, fmt.Errorf("create jwk cache: %w", err)
+		return fmt.Errorf("fetch jwks: %w", err)
 	}
-	if err := cache.Register(ctx, jwksURL, jwk.WithConstantInterval(jwksRefreshInterval)); err != nil {
-		return nil, fmt.Errorf("register jwks url: %w", err)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.keyset = keyset
+	c.fetched = time.Now()
+	return nil
+}
+
+func (c *JWKSClient) currentKeyset(ctx context.Context) (jwk.Set, error) {
+	c.mu.RLock()
+	if c.keyset != nil && time.Since(c.fetched) < jwksRefreshInterval {
+		ks := c.keyset
+		c.mu.RUnlock()
+		return ks, nil
 	}
-	return &JWKSClient{cache: cache, jwksURL: jwksURL}, nil
+	c.mu.RUnlock()
+
+	if err := c.refresh(ctx); err != nil {
+		c.mu.RLock()
+		if c.keyset != nil {
+			ks := c.keyset
+			c.mu.RUnlock()
+			return ks, nil
+		}
+		c.mu.RUnlock()
+		return nil, err
+	}
+	return c.keyset, nil
 }
 
 func (c *JWKSClient) UserFromRequest(ctx context.Context, r *http.Request) (User, error) {
-	keyset, err := c.cache.Lookup(ctx, c.jwksURL)
+	keyset, err := c.currentKeyset(ctx)
 	if err != nil {
 		return User{}, fmt.Errorf("fetch jwks: %w", err)
 	}
@@ -80,7 +120,7 @@ func UserFromRequest(r *http.Request) (User, error) {
 	if jwksURL == "" {
 		jwksURL = "http://localhost:3000/api/auth/jwks"
 	}
-	keyset, err := jwk.Fetch(r.Context(), jwksURL)
+	keyset, err := jwk.Fetch(r.Context(), jwksURL, jwk.WithHTTPClient(&http.Client{Timeout: jwksFetchTimeout}))
 	if err != nil {
 		return User{}, fmt.Errorf("fetch jwks: %w", err)
 	}
