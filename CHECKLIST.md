@@ -7,8 +7,8 @@
 - [x] Add wallet Postgres schema and `golang-migrate` migrations.
 - [x] Add NATS and Redis to Docker Compose.
 - [x] Add gRPC generation setup for gateway → wallet.
-- [ ] Add `.env.example` for gateway and wallet services.
-- [ ] Create `scripts/init_env.sh` to generate all `.env` files and secrets.
+- [x] Add `.env.example` for gateway and wallet services.
+- [x] Create `scripts/init_env.sh` to generate all `.env` files and secrets.
 - [x] Create `scripts/dev-up.sh` to start the local Docker Compose stack.
 - [x] Create `scripts/migrate.sh` to run wallet DB migrations.
 - [ ] Create `scripts/test.sh` to run unit and integration tests.
@@ -65,7 +65,7 @@
 - [ ] Add KYC/AML hooks in schema.
 
 ### Documentation
-- [ ] Update `README.md` with new architecture and local dev instructions.
+- [x] Update `README.md` with new architecture and local dev instructions.
 - [ ] Keep `AGENTS.md` updated with production-ready notes.
 - [ ] Add runbook for xcash webhook troubleshooting.
 
