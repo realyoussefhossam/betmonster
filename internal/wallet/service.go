@@ -1,13 +1,19 @@
 package wallet
 
-import "context"
+import (
+	"context"
+
+	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
+)
 
 type Service struct {
-	store Store
+	store   Store
+	xcash   *xcash.Client
+	xcashValidator *xcash.WebhookValidator
 }
 
-func NewService(store Store) *Service {
-	return &Service{store: store}
+func NewService(store Store, xcashClient *xcash.Client, validator *xcash.WebhookValidator) *Service {
+	return &Service{store: store, xcash: xcashClient, xcashValidator: validator}
 }
 
 func (s *Service) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error) {
@@ -20,4 +26,79 @@ func (s *Service) DebitWallet(ctx context.Context, userID, currency, amount, ref
 
 func (s *Service) GetBalance(ctx context.Context, userID, currency string) (*Wallet, error) {
 	return s.store.GetWallet(ctx, userID, currency)
+}
+
+func (s *Service) GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error) {
+	addr, err := s.store.GetDepositAddress(ctx, userID, currency, chain)
+	if err == nil && addr != nil {
+		return addr, nil
+	}
+
+	resp, err := s.xcash.GetDepositAddress(ctx, xcash.DepositAddressRequest{
+		UID:    userID,
+		Chain:  chain,
+		Crypto: currency,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	addr = &DepositAddress{
+		UserID:   userID,
+		Currency: currency,
+		Chain:    chain,
+		Address:  resp.Address,
+		Status:   "active",
+	}
+	return s.store.CreateDepositAddress(ctx, addr)
+}
+
+func (s *Service) ProcessDepositWebhook(ctx context.Context, body []byte, headers map[string]string) (string, error) {
+	webhook, err := s.xcashValidator.Validate(body, headers)
+	if err != nil {
+		return "", err
+	}
+	if !webhook.Data.Confirmed {
+		return "ok", nil
+	}
+	_, err = s.CreditWallet(ctx, webhook.Data.UID, webhook.Data.Crypto, webhook.Data.Amount, webhook.Data.SysNo, map[string]any{
+		"chain": webhook.Data.Chain,
+		"hash":  webhook.Data.Hash,
+		"block": webhook.Data.Block,
+	})
+	if err != nil {
+		return "", err
+	}
+	return "ok", nil
+}
+
+func (s *Service) RequestWithdrawal(ctx context.Context, userID, currency, amount, destinationAddress, chain string) (*WithdrawalRequest, error) {
+	wallet, err := s.store.GetWallet(ctx, userID, currency)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.store.DebitWallet(ctx, userID, currency, amount, ""); err != nil {
+		return nil, err
+	}
+	req := &WithdrawalRequest{
+		UserID:             userID,
+		WalletID:           wallet.ID,
+		Amount:             amount,
+		Currency:           currency,
+		DestinationAddress: destinationAddress,
+		Chain:              chain,
+	}
+	return s.store.CreateWithdrawalRequest(ctx, req)
+}
+
+func (s *Service) ReviewWithdrawal(ctx context.Context, id, action, txHash, reviewedBy string) (*WithdrawalRequest, error) {
+	return s.store.ReviewWithdrawal(ctx, id, action, txHash, reviewedBy)
+}
+
+func (s *Service) ListTransactions(ctx context.Context, userID string, page, pageSize int) ([]Transaction, error) {
+	return s.store.ListTransactions(ctx, userID, page, pageSize)
+}
+
+func (s *Service) ListPendingWithdrawals(ctx context.Context, page, pageSize int) ([]WithdrawalRequest, error) {
+	return s.store.ListPendingWithdrawals(ctx, page, pageSize)
 }

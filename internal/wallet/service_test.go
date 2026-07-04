@@ -10,7 +10,7 @@ import (
 func TestServiceCreditWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store)
+	svc := NewService(store, nil, nil)
 
 	tx, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -30,7 +30,7 @@ func TestServiceCreditWallet(t *testing.T) {
 func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store)
+	svc := NewService(store, nil, nil)
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "50.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -46,7 +46,7 @@ func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 func TestServiceDebitWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store)
+	svc := NewService(store, nil, nil)
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)

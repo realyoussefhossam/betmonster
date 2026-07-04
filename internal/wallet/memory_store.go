@@ -137,10 +137,19 @@ func (s *memoryStore) ReverseDebit(ctx context.Context, transactionID string) (*
 }
 
 func (s *memoryStore) GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, addr := range s.addresses {
+		if addr.UserID == userID && addr.Currency == currency && addr.Chain == chain && addr.Status == "active" {
+			return addr, nil
+		}
+	}
 	return nil, errors.New("not found")
 }
 
 func (s *memoryStore) CreateDepositAddress(ctx context.Context, addr *DepositAddress) (*DepositAddress, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	addr.ID = uuid.NewString()
 	addr.Status = "active"
 	addr.CreatedAt = time.Now()
@@ -149,6 +158,8 @@ func (s *memoryStore) CreateDepositAddress(ctx context.Context, addr *DepositAdd
 }
 
 func (s *memoryStore) CreateWithdrawalRequest(ctx context.Context, req *WithdrawalRequest) (*WithdrawalRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	req.ID = uuid.NewString()
 	req.Status = "pending"
 	req.CreatedAt = time.Now()
@@ -157,13 +168,46 @@ func (s *memoryStore) CreateWithdrawalRequest(ctx context.Context, req *Withdraw
 }
 
 func (s *memoryStore) ListPendingWithdrawals(ctx context.Context, page, pageSize int) ([]WithdrawalRequest, error) {
-	return nil, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []WithdrawalRequest
+	for _, w := range s.withdrawals {
+		if w.Status == "pending" {
+			out = append(out, *w)
+		}
+	}
+	return out, nil
 }
 
 func (s *memoryStore) ReviewWithdrawal(ctx context.Context, id, action, txHash, reviewedBy string) (*WithdrawalRequest, error) {
-	return nil, errors.New("not implemented in unit test stub")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	w, ok := s.withdrawals[id]
+	if !ok {
+		return nil, errors.New("withdrawal request not found")
+	}
+	switch action {
+	case "approve":
+		w.Status = "approved"
+		w.TxHash = txHash
+		w.ReviewedBy = reviewedBy
+	case "reject":
+		w.Status = "rejected"
+		w.ReviewedBy = reviewedBy
+	default:
+		return nil, errors.New("invalid action")
+	}
+	return w, nil
 }
 
 func (s *memoryStore) ListTransactions(ctx context.Context, userID string, page, pageSize int) ([]Transaction, error) {
-	return nil, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []Transaction
+	for _, t := range s.txns {
+		if t.UserID == userID {
+			out = append(out, *t)
+		}
+	}
+	return out, nil
 }

@@ -245,25 +245,152 @@ func (s *PGStore) ReverseDebit(ctx context.Context, transactionID string) (*Tran
 }
 
 func (s *PGStore) GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error) {
-	return nil, ErrNotImplemented
+	const q = `
+		SELECT id, user_id, currency, chain, address, xcash_deposit_id, status, created_at
+		FROM deposit_addresses
+		WHERE user_id = $1 AND currency = $2 AND chain = $3 AND status = 'active'
+		LIMIT 1
+	`
+	var addr DepositAddress
+	err := s.db.QueryRowContext(ctx, q, userID, currency, chain).Scan(
+		&addr.ID, &addr.UserID, &addr.Currency, &addr.Chain, &addr.Address, &addr.XCashDepositID, &addr.Status, &addr.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, errors.New("deposit address not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get deposit address: %w", err)
+	}
+	return &addr, nil
 }
 
 func (s *PGStore) CreateDepositAddress(ctx context.Context, addr *DepositAddress) (*DepositAddress, error) {
-	return nil, ErrNotImplemented
+	const q = `
+		INSERT INTO deposit_addresses (user_id, currency, chain, address, xcash_deposit_id, status)
+		VALUES ($1, $2, $3, $4, $5, 'active')
+		RETURNING id, created_at
+	`
+	err := s.db.QueryRowContext(ctx, q, addr.UserID, addr.Currency, addr.Chain, addr.Address, addr.XCashDepositID).Scan(&addr.ID, &addr.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("create deposit address: %w", err)
+	}
+	addr.Status = "active"
+	return addr, nil
 }
 
 func (s *PGStore) CreateWithdrawalRequest(ctx context.Context, req *WithdrawalRequest) (*WithdrawalRequest, error) {
-	return nil, ErrNotImplemented
+	const q = `
+		INSERT INTO withdrawal_requests (user_id, wallet_id, amount, currency, destination_address, chain, status)
+		VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+		RETURNING id, status, created_at
+	`
+	err := s.db.QueryRowContext(ctx, q, req.UserID, req.WalletID, req.Amount, req.Currency, req.DestinationAddress, req.Chain).
+		Scan(&req.ID, &req.Status, &req.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("create withdrawal request: %w", err)
+	}
+	return req, nil
 }
 
 func (s *PGStore) ListPendingWithdrawals(ctx context.Context, page, pageSize int) ([]WithdrawalRequest, error) {
-	return nil, ErrNotImplemented
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	const q = `
+		SELECT id, user_id, wallet_id, amount, currency, destination_address, chain, status, tx_hash, reviewed_by, created_at
+		FROM withdrawal_requests
+		WHERE status = 'pending'
+		ORDER BY created_at ASC
+		LIMIT $1 OFFSET $2
+	`
+	rows, err := s.db.QueryContext(ctx, q, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list pending withdrawals: %w", err)
+	}
+	defer rows.Close()
+
+	var out []WithdrawalRequest
+	for rows.Next() {
+		var w WithdrawalRequest
+		if err := rows.Scan(
+			&w.ID, &w.UserID, &w.WalletID, &w.Amount, &w.Currency, &w.DestinationAddress, &w.Chain,
+			&w.Status, &w.TxHash, &w.ReviewedBy, &w.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
 }
 
 func (s *PGStore) ReviewWithdrawal(ctx context.Context, id, action, txHash, reviewedBy string) (*WithdrawalRequest, error) {
-	return nil, ErrNotImplemented
+	var status string
+	switch action {
+	case "approve":
+		status = "approved"
+	case "reject":
+		status = "rejected"
+	default:
+		return nil, errors.New("invalid action")
+	}
+
+	const q = `
+		UPDATE withdrawal_requests
+		SET status = $1, tx_hash = $2, reviewed_by = $3, updated_at = NOW()
+		WHERE id = $4
+		RETURNING id, user_id, wallet_id, amount, currency, destination_address, chain, status, tx_hash, reviewed_by, created_at
+	`
+	var w WithdrawalRequest
+	err := s.db.QueryRowContext(ctx, q, status, txHash, reviewedBy, id).Scan(
+		&w.ID, &w.UserID, &w.WalletID, &w.Amount, &w.Currency, &w.DestinationAddress, &w.Chain,
+		&w.Status, &w.TxHash, &w.ReviewedBy, &w.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, errors.New("withdrawal request not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("review withdrawal: %w", err)
+	}
+	return &w, nil
 }
 
 func (s *PGStore) ListTransactions(ctx context.Context, userID string, page, pageSize int) ([]Transaction, error) {
-	return nil, ErrNotImplemented
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	const q = `
+		SELECT id, user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id, metadata, created_at
+		FROM transactions
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+	rows, err := s.db.QueryContext(ctx, q, userID, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list transactions: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Transaction
+	for rows.Next() {
+		var t Transaction
+		if err := rows.Scan(
+			&t.ID, &t.UserID, &t.WalletID, &t.Type, &t.Amount, &t.BalanceBefore, &t.BalanceAfter,
+			&t.Status, &t.ReferenceID, &t.Metadata, &t.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
