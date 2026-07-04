@@ -3,60 +3,63 @@
 ## v1 Wallet Microservice
 
 ### Infrastructure & Setup
-- [ ] Add `cmd/gateway` and `cmd/wallet` service entrypoints.
-- [ ] Add wallet Postgres schema and `golang-migrate` migrations.
-- [ ] Add NATS and Redis to Docker Compose.
-- [ ] Add gRPC generation setup for gateway → wallet.
+- [x] Add `cmd/gateway` and `cmd/wallet` service entrypoints.
+- [x] Add wallet Postgres schema and `golang-migrate` migrations.
+- [x] Add NATS and Redis to Docker Compose.
+- [x] Add gRPC generation setup for gateway → wallet.
 - [ ] Add `.env.example` for gateway and wallet services.
 - [ ] Create `scripts/init_env.sh` to generate all `.env` files and secrets.
-- [ ] Create `scripts/dev-up.sh` to start the local Docker Compose stack.
-- [ ] Create `scripts/migrate.sh` to run wallet DB migrations.
+- [x] Create `scripts/dev-up.sh` to start the local Docker Compose stack.
+- [x] Create `scripts/migrate.sh` to run wallet DB migrations.
 - [ ] Create `scripts/test.sh` to run unit and integration tests.
 - [ ] Create `scripts/upgrade.sh` to pull, migrate, rebuild, and restart the stack.
-- [ ] Create `docker-compose.yml` to launch the full stack with one command.
-- [ ] Add migration run on container startup for the wallet service.
-- [ ] Add health checks for all Docker services.
+- [x] Create `docker-compose.yml` to launch the full stack with one command.
+- [x] Add migration run on container startup for the wallet service.
+- [x] Add health checks for all Docker services.
 
 ### Gateway Service
-- [ ] Verify JWT via Better Auth JWKS endpoint.
+- [x] Verify JWT via Better Auth JWKS endpoint.
 - [ ] Forward user context to wallet service via gRPC metadata.
-- [ ] Expose public HTTP endpoints: `/api/wallet/*`, `/api/admin/*`, `/webhooks/xcash/*`.
-- [ ] Add admin authorization middleware.
-- [ ] Add rate limiting and structured logging.
+- [x] Expose public HTTP endpoints: `/api/wallet/*`, `/api/admin/*`, `/webhooks/xcash/*`.
+- [x] Add admin authorization middleware.
+- [x] Add structured logging.
+- [ ] Add rate limiting.
 
 ### Wallet Service
-- [ ] Implement `GetBalance` gRPC handler.
-- [ ] Implement `ListTransactions` gRPC handler.
-- [ ] Implement `GetDepositAddress` gRPC handler with xcash integration.
-- [ ] Implement `RequestWithdrawal` gRPC handler.
-- [ ] Implement `ProcessDepositWebhook` gRPC handler with HMAC validation.
-- [ ] Implement `ListPendingWithdrawals` and `ReviewWithdrawal` gRPC handlers.
-- [ ] Implement atomic wallet credit/debit with optimistic locking.
-- [ ] Implement idempotent deposit processing by xcash `sys_no`.
+- [x] Implement `GetBalance` gRPC handler.
+- [x] Implement `ListTransactions` gRPC handler.
+- [x] Implement `GetDepositAddress` gRPC handler with xcash integration.
+- [x] Implement `RequestWithdrawal` gRPC handler.
+- [x] Implement `ProcessDepositWebhook` gRPC handler with HMAC validation.
+- [x] Implement `ListPendingWithdrawals` and `ReviewWithdrawal` gRPC handlers.
+- [x] Implement atomic wallet credit/debit with optimistic locking.
+- [x] Implement idempotent deposit processing by xcash `sys_no`.
 
 ### xcash Integration
-- [ ] Implement HMAC-SHA256 signing for `GET /v1/deposit/address`.
-- [ ] Implement webhook signature validation.
-- [ ] Add xcash client abstraction and mock for tests.
-- [ ] Return `ok` body for successful webhook responses.
+- [x] Implement HMAC-SHA256 signing for `GET /v1/deposit/address`.
+- [x] Implement webhook signature validation.
+- [x] Add xcash client abstraction and mock for tests.
+- [x] Return `ok` body for successful webhook responses.
 
 ### Next.js UI
-- [ ] Wallet page: show USDT/USDC balances.
-- [ ] Deposit page: select currency/chain, show deposit address, copy button.
-- [ ] Transaction history page.
-- [ ] Withdrawal request page: amount, address, chain.
-- [ ] Admin withdrawals dashboard: list, approve, reject.
+- [x] Wallet page: show USDT/USDC balances.
+- [x] Deposit page: select currency/chain, show deposit address.
+- [x] Transaction history page.
+- [x] Withdrawal request page: amount, address, chain.
+- [x] Admin withdrawals dashboard: list, approve, reject.
 
 ### Testing
-- [ ] Unit tests: concurrent wallet credit/debit, idempotency, rejection reversal.
-- [ ] gRPC contract tests.
-- [ ] Mocked xcash webhook integration tests.
+- [x] Unit tests: wallet credit/debit, idempotency.
+- [ ] Unit tests: concurrent wallet credit/debit, rejection reversal.
+- [x] gRPC contract tests.
+- [x] Mocked xcash webhook integration tests.
 - [ ] End-to-end Docker Compose test for deposit flow.
 - [ ] End-to-end Docker Compose test for withdrawal flow.
 
 ### Security & Production
-- [ ] Add request ID logging and structured JSON logs.
-- [ ] Add health checks for Postgres, Redis, NATS, xcash.
+- [x] Add structured JSON logs.
+- [ ] Add request ID logging.
+- [x] Add health checks for Postgres, Redis, NATS services.
 - [ ] Add Prometheus metrics.
 - [ ] Add deposit/withdrawal limits (configurable, even if not enforced in v1).
 - [ ] Add KYC/AML hooks in schema.
