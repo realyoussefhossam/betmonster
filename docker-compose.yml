@@ -1,3 +1,5 @@
+name: betmonster
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -30,6 +32,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wallet
+    image: betmonster/wallet
     ports:
       - "8081:8081"
       - "50051:50051"
@@ -54,6 +57,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.gateway
+    image: betmonster/gateway
     ports:
       - "8080:8080"
     environment:
@@ -76,6 +80,7 @@ services:
         BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
         NEXT_PUBLIC_GO_API_URL: ${NEXT_PUBLIC_GO_API_URL:-http://localhost:8080}
         GO_API_URL: ${GO_API_URL:-http://gateway:8080}
+    image: betmonster/app
     ports:
       - "3000:3000"
     environment:

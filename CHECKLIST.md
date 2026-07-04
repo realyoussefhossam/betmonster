@@ -1,4 +1,4 @@
-# Better Auth Go — Sportsbook/Casino Checklist
+# BetMonster — v1 Wallet Microservice Checklist
 
 ## v1 Wallet Microservice
 

@@ -116,8 +116,8 @@ Rules for money-related code:
 The production stack must be launchable in three commands, like xcash:
 
 ```bash
-git clone <repo>
-cd better-auth-go
+git clone https://github.com/realyoussefhossam/betmonster.git
+cd betmonster
 ./scripts/init_env.sh
 docker compose up -d
 ```
