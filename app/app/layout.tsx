@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Better Auth - GO",
+  title: "BetMonster",
   description:
-    "The most comprehensive authentication framework for TypeScript - Go Implementation",
+    "Open-source, self-hosted sportsbook and casino platform.",
 };
 
 export default function RootLayout({
