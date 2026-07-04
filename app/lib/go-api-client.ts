@@ -1,4 +1,4 @@
-import authClient from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 import { decodeJwt } from "jose";
 
 const GO_API_URL =

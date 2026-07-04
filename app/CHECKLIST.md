@@ -32,3 +32,37 @@
 - [x] enable JWT plugin + email/password in `lib/auth.ts` (`jwt()` server plugin, `emailAndPassword: { enabled: true }`)
 - [x] add server-side Go API proxy at `app/api/[...path]/route.ts` (forwards to `GO_API_URL`, injects JWT via `auth.api.getToken`, streams body)
 - [x] add `GO_API_URL` to `.env` (server-only, used by proxy route; defaults to `http://localhost:8080` matching Go API port)
+- [x] add `NEXT_PUBLIC_GO_API_URL` to `.env` (client-side, used by `lib/go-api-client.ts`)
+- [x] create `lib/go-api-client.ts` (fetch-based client with JWT token caching via `decodeJwt` expiry check)
+- [x] rename Go route `/api/auth/verify` → `/api/verify` (avoid collision with Better Auth's `/api/auth/*` catch-all)
+- [x] proxy returns 401 (not 500) when no session exists
+- [x] Enable Email & Password Authentication (`emailAndPassword: { enabled: true }` in `lib/auth.ts`)
+- [x] Setup Sonner (`<Toaster />` rendered in `app/layout.tsx`)
+- [x] Create Sign Up Page PT1
+  - [x] Create Form `components/register-form.tsx`
+  - [x] Log Form Values (validation logs errors via toast)
+- [x] Create Sign Up Page PT2
+  - [x] Add Form Validation (empty-field checks for name/email/password)
+  - [x] Destructure SignUp Function (`export const { signIn, signUp, signOut } = authClient` in `lib/auth-client.ts`)
+  - [x] Showcase `onError` (`toast.error(ctx.error.message)` in register-form)
+- [x] Create Sign Up Page PT3
+  - [x] Sign Up _default automatically signs in the user_ (Better Auth default behavior)
+- [x] Create register page route `app/(auth)/register/page.tsx` (with back button + RegisterForm)
+- OPTIONS - **minPasswordLength**
+- [x] Show Session on Profile Page (`app/profile/page.tsx` — server-side `auth.api.getSession()`, renders session JSON)
+- [ ] Show Data in Neon Dashboard
+- [x] Sign Out User
+  - [x] Destructure SignOut Function (`components/sign-out-button.tsx` uses `signOut` from auth-client)
+  - [x] Show Removed Cookies (sign-out clears session cookie; visible in browser DevTools)
+- [x] Show Unauthorized on Profile Page (`<p>Unauthorized</p>` when no session)
+- [x] Create Sign In Page PT1
+  - [x] Create Form `components/login-form.tsx`
+  - [x] Log Form Values (validation logs errors via toast)
+  - [x] Destructure SignIn Function (`signIn` from `lib/auth-client.ts`)
+- [ ] Show Unauthorized on Profile Page
+- [x] Create Sign In Page PT2
+  - [x] Showcase `onError` (`toast.error(ctx.error.message)` in login-form)
+  - [x] Sign In User
+- [x] Create login page route `app/(auth)/login/page.tsx` (with back button + LoginForm)
+- [x] Fix `go-api-client.ts` import (named `authClient` not default) + typecheck
+- [ ] FINISH PART 1
