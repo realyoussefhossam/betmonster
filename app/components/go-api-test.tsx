@@ -4,33 +4,23 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-interface VerifyResponse {
-  status: string;
-  message: string;
-  user?: {
-    ID: string;
-    Email: string;
-    Name: string;
-  };
-}
-
 interface ErrorResponse {
   error: string;
 }
 
 export const GoApiTest = () => {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<VerifyResponse | ErrorResponse | null>(null);
+  const [result, setResult] = useState<Record<string, unknown> | ErrorResponse | null>(null);
 
-  async function testVerify() {
+  async function testBalance() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/verify", { method: "GET" });
+      const res = await fetch("/api/wallet/balance?currency=USDT", { method: "GET" });
       const data = await res.json();
       setResult(data);
       if (res.ok) {
-        toast.success("Go API verified the JWT");
+        toast.success("Wallet balance endpoint OK");
       } else {
         toast.error(data.error ?? "Request failed");
       }
@@ -43,15 +33,15 @@ export const GoApiTest = () => {
     }
   }
 
-  async function testMe() {
+  async function testTransactions() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/me", { method: "GET" });
+      const res = await fetch("/api/wallet/transactions", { method: "GET" });
       const data = await res.json();
       setResult(data);
       if (res.ok) {
-        toast.success("Go API returned user data");
+        toast.success("Transactions endpoint OK");
       } else {
         toast.error(data.error ?? "Request failed");
       }
@@ -67,11 +57,11 @@ export const GoApiTest = () => {
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Button onClick={testVerify} disabled={loading} size="sm">
-          {loading ? "Testing..." : "Test /api/verify"}
+        <Button onClick={testBalance} disabled={loading} size="sm">
+          {loading ? "Testing..." : "Test balance"}
         </Button>
-        <Button onClick={testMe} disabled={loading} size="sm" variant="outline">
-          {loading ? "Testing..." : "Test /api/me"}
+        <Button onClick={testTransactions} disabled={loading} size="sm" variant="outline">
+          {loading ? "Testing..." : "Test transactions"}
         </Button>
       </div>
 

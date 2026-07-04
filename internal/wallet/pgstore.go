@@ -14,10 +14,9 @@ type PGStore struct {
 }
 
 var (
-	ErrNotImplemented     = errors.New("not implemented")
+	ErrNotImplemented      = errors.New("not implemented")
 	ErrInsufficientBalance = errors.New("insufficient balance")
-	ErrWalletNotFound     = errors.New("wallet not found")
-	ErrWalletConflict     = errors.New("wallet update conflict")
+	ErrWalletConflict      = errors.New("wallet update conflict")
 )
 
 func NewPGStore(db *sql.DB) *PGStore {

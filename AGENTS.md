@@ -88,6 +88,7 @@ Rules for money-related code:
   - JWT verification only in the gateway.
   - Internal services must not be publicly reachable.
   - Use mTLS or internal VPC for gateway ↔ wallet in production.
+  - Reach xcash over a private Docker network (e.g., `xcash_public`) in production/self-hosted deployments; avoid routing deposit address requests through the public internet or host loopback.
   - Validate xcash webhook HMAC signature.
   - Never log private keys or webhook secrets.
 

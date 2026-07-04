@@ -21,9 +21,13 @@ NEXT_PUBLIC_GO_API_URL=http://localhost:8080
 GO_API_URL=http://localhost:8080
 
 GATEWAY_PORT=8080
-JWKS_URL=http://localhost:3000/api/auth/jwks
+# JWKS_URL defaults to http://localhost:3000/api/auth/jwks outside Docker.
+# In Docker Compose the gateway service overrides it to http://app:3000/api/auth/jwks.
+# JWKS_URL=http://localhost:3000/api/auth/jwks
 WALLET_SERVICE_ADDR=localhost:50051
 ADMIN_USER_IDS=
+SUPPORTED_CURRENCIES=USDT
+SUPPORTED_CHAINS=anvil
 
 WALLET_PORT=8081
 DATABASE_URL=postgres://wallet:wallet@localhost:5433/wallet?sslmode=disable

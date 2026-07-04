@@ -40,6 +40,7 @@
 - [x] Implement webhook signature validation.
 - [x] Add xcash client abstraction and mock for tests.
 - [x] Return `ok` body for successful webhook responses.
+- [x] Add `scripts/setup-xcash.sh` to auto-provision a local xcash + anvil test instance.
 
 ### Next.js UI
 - [x] Wallet page: show USDT/USDC balances.

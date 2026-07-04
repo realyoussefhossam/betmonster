@@ -16,12 +16,6 @@ export interface UserProfile {
   name: string;
 }
 
-export interface AuthVerifyResponse {
-  valid: boolean;
-  userId?: string;
-  email?: string;
-}
-
 export interface BalanceResponse {
   currency: string;
   balance: string;
@@ -54,6 +48,11 @@ export interface DepositAddressResponse {
 export interface WithdrawalResponse {
   withdrawalId: string;
   status: string;
+}
+
+export interface SupportedOptionsResponse {
+  currencies: string[];
+  chains: string[];
 }
 
 export interface WithdrawalRequest {
@@ -151,10 +150,8 @@ class GoApiClient {
     }
   }
 
-  async verifyAuth(): Promise<ApiResponse<AuthVerifyResponse>> {
-    return this.request("/api/verify", {
-      method: "GET",
-    });
+  async getSupportedOptions(): Promise<ApiResponse<SupportedOptionsResponse>> {
+    return this.request("/api/wallet/supported", { method: "GET" });
   }
 
   async getBalance(currency: string = "USDT"): Promise<ApiResponse<BalanceResponse>> {
@@ -167,7 +164,7 @@ class GoApiClient {
 
   async getDepositAddress(
     currency: string = "USDT",
-    chain: string = "base",
+    chain: string = "polygon",
   ): Promise<ApiResponse<DepositAddressResponse>> {
     return this.request(`/api/wallet/deposit-address?currency=${currency}&chain=${chain}`, {
       method: "GET",

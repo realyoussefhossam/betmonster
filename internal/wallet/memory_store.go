@@ -46,7 +46,7 @@ func (s *memoryStore) GetWallet(ctx context.Context, userID, currency string) (*
 	defer s.mu.Unlock()
 	w, ok := s.wallets[s.walletKey(userID, currency)]
 	if !ok {
-		return nil, errors.New("wallet not found")
+		return nil, ErrWalletNotFound
 	}
 	return w, nil
 }

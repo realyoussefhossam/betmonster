@@ -19,6 +19,10 @@ app/.next/
 app/out/
 app/lib/generated/
 
+# Local dependencies / external services used for development
+.deps/
+deps/
+
 # OS
 .DS_Store
 .devin/

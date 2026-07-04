@@ -60,3 +60,19 @@ func TestServiceDebitWallet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "60", wallet.Balance)
 }
+
+func TestServiceGetBalanceCreatesWallet(t *testing.T) {
+	ctx := context.Background()
+	store := newInMemoryStore()
+	svc := NewService(store, nil, nil)
+
+	wallet, err := svc.GetBalance(ctx, "new-user", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, "USDT", wallet.Currency)
+	assert.Equal(t, "0", wallet.Balance)
+
+	// A second call should return the same wallet, not create another.
+	wallet2, err := svc.GetBalance(ctx, "new-user", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, wallet.ID, wallet2.ID)
+}

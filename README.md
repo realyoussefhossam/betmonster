@@ -24,9 +24,13 @@ Requires [Docker](https://docs.docker.com/get-docker/) and [Go 1.26+](https://go
 git clone https://github.com/realyoussefhossam/betmonster.git
 cd betmonster
 ./scripts/init_env.sh
-# Edit .env and add your xcash credentials (XCASH_APPID, XCASH_HMAC_KEY, XCASH_WEBHOOK_SECRET)
+./scripts/setup-xcash.sh   # optional: starts a local xcash + anvil for testing
 docker compose up -d
 ```
+
+`setup-xcash.sh` clones the [xcash](https://github.com/xca-sh/xcash) repo into `deps/xcash`, starts the full xcash stack plus an anvil EVM test chain, and writes the generated `XCASH_APPID`, `XCASH_HMAC_KEY`, and `XCASH_WEBHOOK_SECRET` into your `.env`.
+
+**Important:** `setup-xcash.sh` must run **before** `docker compose up -d` so the shared `xcash_public` Docker network exists. The BetMonster wallet container joins this network to reach xcash internally at `http://xcash-caddy:80`. The local anvil chain is configured with the chain code `anvil`, so use that when testing deposits from the UI or API.
 
 This starts:
 
@@ -80,7 +84,7 @@ make proto
 |------------------|-------------|
 | `GET /api/wallet/balance?currency=USDT` | User balance |
 | `GET /api/wallet/transactions` | Transaction history |
-| `GET /api/wallet/deposit-address?currency=USDT&chain=base` | Get or create xcash deposit address |
+| `GET /api/wallet/deposit-address?currency=USDT&chain=polygon` | Get or create xcash deposit address |
 | `POST /api/wallet/withdraw` | Request a withdrawal |
 | `GET /api/admin/withdrawals` | List pending withdrawals (admin only) |
 | `POST /api/admin/withdrawals/review` | Approve/reject a withdrawal (admin only) |

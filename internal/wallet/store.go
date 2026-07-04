@@ -1,6 +1,11 @@
 package wallet
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrWalletNotFound = errors.New("wallet not found")
 
 type Store interface {
 	GetWallet(ctx context.Context, userID, currency string) (*Wallet, error)

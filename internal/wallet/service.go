@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"errors"
 
 	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
 )
@@ -25,7 +26,14 @@ func (s *Service) DebitWallet(ctx context.Context, userID, currency, amount, ref
 }
 
 func (s *Service) GetBalance(ctx context.Context, userID, currency string) (*Wallet, error) {
-	return s.store.GetWallet(ctx, userID, currency)
+	wallet, err := s.store.GetWallet(ctx, userID, currency)
+	if err == nil {
+		return wallet, nil
+	}
+	if errors.Is(err, ErrWalletNotFound) {
+		return s.store.CreateWallet(ctx, userID, currency)
+	}
+	return nil, err
 }
 
 func (s *Service) GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error) {
