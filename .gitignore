@@ -2,7 +2,7 @@
 api/api
 api/*.exe
 gateway
-wallet
+bin/
 *.exe
 
 # Air live-reload

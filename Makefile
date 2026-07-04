@@ -1,8 +1,9 @@
 .PHONY: build test migrate proto dev
 
 build:
-	go build ./cmd/gateway
-	go build ./cmd/wallet
+	mkdir -p bin
+	go build -o bin/gateway ./cmd/gateway
+	go build -o bin/wallet ./cmd/wallet
 
 test:
 	go test ./...
