@@ -95,7 +95,7 @@ better-auth-go/
 └── README.md
 ```
 
-## Setup
+## Getting Started
 
 ### Prerequisites
 
@@ -103,56 +103,26 @@ better-auth-go/
 - Go 1.26+
 - A [Neon](https://neon.tech) Postgres database (free tier works)
 
-### 1. Database (Neon)
+Check the individual README files in each project directory for specific setup instructions:
 
-1. Create a project at [console.neon.tech](https://console.neon.tech)
-2. Copy the connection string from the dashboard
+- **[Frontend Setup](app/README.md)** — Next.js + Better Auth + Prisma
+- **[Backend Setup](api/README.md)** — Go API + JWT verification
 
-### 2. Next.js App
+### Quick start
 
 ```bash
-cd app
-cp .env.example .env
+# 1. Start the frontend (terminal 1)
+cd app && cp .env.example .env   # edit .env first!
+npm install && npx prisma generate && npx prisma db push && npm run dev
+
+# 2. Start the Go API (terminal 2)
+cd api && cp .env.example .env
+go mod download && go run .
 ```
 
-Edit `.env`:
-- `BETTER_AUTH_SECRET` — generate with `openssl rand -base64 32`
-- `DATABASE_URL` — paste your Neon connection string
-- `GO_API_URL` / `NEXT_PUBLIC_GO_API_URL` — Go API URL (defaults to `http://localhost:8080`)
+### Verify
 
 ```bash
-npm install
-npx prisma generate
-npx prisma db push    # creates User, Session, Account, Verification, Jwks tables
-npm run dev
-```
-
-App runs on `http://localhost:3000`.
-
-### 3. Go API
-
-```bash
-cd api
-cp .env.example .env
-```
-
-Edit `.env` (defaults work for local dev):
-- `PORT` — Go server port (default `8080`)
-- `JWKS_URL` — Better Auth JWKS endpoint (default `http://localhost:3000/api/auth/jwks`)
-
-```bash
-go mod download
-go run .
-```
-
-API runs on `http://localhost:8080`.
-
-> **Tip:** use [`air`](https://github.com/air-verse/air) for live reloading during development (`go install github.com/air-verse/air@latest && air`).
-
-### 4. Verify
-
-```bash
-# Both servers should be running
 curl http://localhost:3000/api/auth/ok        # {"ok":true}
 curl http://localhost:8080/health             # {"status":"healthy",...}
 curl http://localhost:3000/api/auth/jwks      # {"keys":[{"alg":"EdDSA",...}]}
