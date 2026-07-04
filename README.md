@@ -157,6 +157,45 @@ Then open `http://localhost:3000/register`, create an account, and visit `http:/
 - **Key rotation:** Better Auth supports JWKS rotation via `jwks.rotationInterval`. During rotation, both old and new keys are published so existing JWTs keep verifying through a grace period (default 30 days).
 - **Collocation:** the proxy adds a hop (browser → Next.js → Go). If both servers run on the same VPS this is negligible; if Next.js is on Vercel and Go is elsewhere, consider the latency.
 
+## Shared vs Separate Database
+
+The Go API currently has no data layer — it only verifies JWTs. But once you add Go-side tables (orders, posts, etc.), you have a decision to make about where the auth tables live relative to your app tables.
+
+### Shared database (this project's default)
+
+All tables — Better Auth's (`user`, `session`, `account`, `verification`, `jwks`) and your Go API's (`orders`, `products`, etc.) — live in the same Neon database. Prisma manages the auth tables; Go manages its own tables via `database/sql` or an ORM like `sqlx`/`pgx`.
+
+```
+Neon Postgres (one database)
+├── user, session, account, verification, jwks   ← Prisma (Better Auth)
+└── orders, products, ...                        ← Go API
+```
+
+- **Pros:** one connection string, one bill, simpler ops, Go can JOIN auth tables if needed (e.g., "get all orders for this user's email")
+- **Cons:** Prisma and Go both touch the same database — coordinate migrations so they don't conflict. Don't let Prisma `db push` overwrite Go's tables or vice versa.
+
+### Separate databases
+
+Better Auth gets its own database; the Go API gets its own. The JWT's `sub` (user ID) is the only link between them.
+
+```
+Neon DB 1 (auth)              Neon DB 2 (app)
+├── user                      ├── orders
+├── session                   ├── products
+├── account                   └── ...
+├── verification
+└── jwks
+```
+
+- **Pros:** clean separation, each service owns its schema, no migration conflicts
+- **Cons:** two connection strings, two bills, can't JOIN across databases, Go can't read user details directly (must rely on JWT claims only)
+
+### Which to pick?
+
+- **Small/medium projects:** shared database. One Neon project, one connection string. Just keep Prisma's `db push` away from Go's tables (Prisma only manages models defined in `schema.prisma`).
+- **Large/teams:** separate databases. Each service is independently deployable and migratable.
+- **The JWT bridge works either way** — the Go API never reads the auth database directly. It only verifies JWTs against the JWKS endpoint. The database question only matters if Go needs to query auth data (e.g., listing all users for an admin panel).
+
 ## License
 
 MIT
