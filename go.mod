@@ -3,7 +3,9 @@ module github.com/realyoussefhossam/betmonster
 go 1.26.4
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/lestrrat-go/jwx/v3 v3.1.1
+	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11
