@@ -1,0 +1,85 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: wallet
+      POSTGRES_DB: wallet
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  nats:
+    image: nats:2-alpine
+    ports:
+      - "4222:4222"
+
+  wallet:
+    build:
+      context: .
+      dockerfile: Dockerfile.wallet
+    ports:
+      - "8081:8081"
+      - "50051:50051"
+    environment:
+      PORT: "8081"
+      DATABASE_URL: postgres://wallet:wallet@postgres:5432/wallet?sslmode=disable
+      REDIS_ADDR: redis:6379
+      NATS_URL: nats://nats:4222
+      XCASH_BASE_URL: ${XCASH_BASE_URL:-http://host.docker.internal:6688}
+      XCASH_APPID: ${XCASH_APPID:-}
+      XCASH_HMAC_KEY: ${XCASH_HMAC_KEY:-}
+      XCASH_WEBHOOK_SECRET: ${XCASH_WEBHOOK_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      nats:
+        condition: service_started
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      JWKS_URL: ${JWKS_URL:-http://host.docker.internal:3000/api/auth/jwks}
+      WALLET_SERVICE_ADDR: wallet:50051
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
+    depends_on:
+      wallet:
+        condition: service_started
+
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_GO_API_URL: http://gateway:8080
+      GO_API_URL: http://gateway:8080
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: http://localhost:3000
+    depends_on:
+      gateway:
+        condition: service_started
+
+volumes:
+  postgres_data:
