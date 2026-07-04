@@ -1,0 +1,71 @@
+syntax = "proto3";
+package wallet;
+option go_package = "github.com/realyoussefhossam/betmonster/internal/proto";
+
+service WalletService {
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+  rpc GetDepositAddress(GetDepositAddressRequest) returns (GetDepositAddressResponse);
+  rpc RequestWithdrawal(RequestWithdrawalRequest) returns (RequestWithdrawalResponse);
+  rpc ProcessDepositWebhook(ProcessDepositWebhookRequest) returns (ProcessDepositWebhookResponse);
+  rpc ListPendingWithdrawals(ListPendingWithdrawalsRequest) returns (ListPendingWithdrawalsResponse);
+  rpc ReviewWithdrawal(ReviewWithdrawalRequest) returns (ReviewWithdrawalResponse);
+}
+
+message GetBalanceRequest { string user_id = 1; string currency = 2; }
+message GetBalanceResponse { string currency = 1; string balance = 2; }
+
+message Transaction {
+  string id = 1;
+  string user_id = 2;
+  string wallet_id = 3;
+  string type = 4;
+  string amount = 5;
+  string balance_before = 6;
+  string balance_after = 7;
+  string status = 8;
+  string reference_id = 9;
+  string metadata = 10;
+  string created_at = 11;
+}
+
+message ListTransactionsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
+message ListTransactionsResponse { repeated Transaction transactions = 1; }
+
+message GetDepositAddressRequest { string user_id = 1; string currency = 2; string chain = 3; }
+message GetDepositAddressResponse { string address = 1; string chain = 2; string currency = 3; }
+
+message RequestWithdrawalRequest {
+  string user_id = 1;
+  string currency = 2;
+  string amount = 3;
+  string destination_address = 4;
+  string chain = 5;
+}
+message RequestWithdrawalResponse { string withdrawal_id = 1; string status = 2; }
+
+message ProcessDepositWebhookRequest { string body = 1; map<string, string> headers = 2; }
+message ProcessDepositWebhookResponse { string response_body = 1; }
+
+message WithdrawalRequest {
+  string id = 1;
+  string user_id = 2;
+  string currency = 3;
+  string amount = 4;
+  string destination_address = 5;
+  string chain = 6;
+  string status = 7;
+  string tx_hash = 8;
+  string created_at = 9;
+}
+
+message ListPendingWithdrawalsRequest { int32 page = 1; int32 page_size = 2; }
+message ListPendingWithdrawalsResponse { repeated WithdrawalRequest withdrawals = 1; }
+
+message ReviewWithdrawalRequest {
+  string withdrawal_id = 1;
+  string action = 2;
+  string tx_hash = 3;
+  string reviewed_by = 4;
+}
+message ReviewWithdrawalResponse { string status = 1; }
