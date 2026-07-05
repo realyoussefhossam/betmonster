@@ -4,7 +4,7 @@
 
 **Goal:** Extend the existing fiat-display feature from USD-only to ~70 fiat currencies, allowing users to choose their display currency while keeping all settlement in cryptocurrency.
 
-**Architecture:** A new `ForexProvider` fetches USD-to-fiat rates from a free API. The existing crypto providers continue fetching crypto-to-USD rates. The `Aggregator` first tries a direct crypto-to-fiat pair, then falls back to `cryptoUSD * USDfiat`. The wallet gRPC API accepts an optional `fiat_currency` field and defaults to `DEFAULT_FIAT_CURRENCY`. The frontend stores the user's choice in `localStorage` and passes it to the API.
+**Architecture:** A new `ForexProvider` chain fetches USD-to-fiat rates from four free providers: `open.er-api.com`, Coinbase, `fawazahmed0/currency-api`, and MoneyConvert. The existing crypto providers continue fetching crypto-to-USD rates. The `Aggregator` first tries a direct crypto-to-fiat pair, then falls back to `cryptoUSD * USDfiat`. The wallet gRPC API accepts an optional `fiat_currency` field and defaults to `DEFAULT_FIAT_CURRENCY`. The frontend stores the user's choice in `localStorage` and passes it to the API.
 
 **Tech Stack:** Go 1.26, gRPC, Protocol Buffers, Next.js 16, TypeScript, Tailwind CSS.
 
@@ -14,8 +14,12 @@
 
 | File | Responsibility |
 |---|---|
-| `internal/wallet/rates/fiat.go` | `ForexProvider` interface and a free USD-to-fiat rate provider. |
-| `internal/wallet/rates/fiat_test.go` | Tests for the forex provider. |
+| `internal/wallet/rates/forex.go` | `ForexProvider` interface and chain logic. |
+| `internal/wallet/rates/forex_open.go` | `open.er-api.com` USD-to-fiat provider. |
+| `internal/wallet/rates/forex_coinbase.go` | Coinbase USD-to-fiat provider. |
+| `internal/wallet/rates/forex_fawazahmed0.go` | `fawazahmed0/currency-api` provider. |
+| `internal/wallet/rates/forex_moneyconvert.go` | MoneyConvert USD-to-fiat provider. |
+| `internal/wallet/rates/forex_test.go` | Tests for the forex providers. |
 | `internal/wallet/rates/util.go` | `isStablecoin`, `normalizeSymbol`, `supportedFiatCurrencies`. |
 | `internal/wallet/rates/binance.go` | Remove USD->USDT hardcoding; support direct fiat pairs. |
 | `internal/wallet/rates/coinbase.go` | Support direct fiat pairs. |
@@ -147,55 +151,19 @@ git commit -m "config(rates): add supported fiat currency list"
 
 ---
 
-## Task 2: Add Forex Provider (USD-to-Fiat)
+## Task 2: Add Forex Providers (USD-to-Fiat) with Fallback Chain
 
 **Files:**
-- Create: `internal/wallet/rates/fiat.go`
-- Create: `internal/wallet/rates/fiat_test.go`
+- Create: `internal/wallet/rates/forex.go`
+- Create: `internal/wallet/rates/forex_open.go`
+- Create: `internal/wallet/rates/forex_coinbase.go`
+- Create: `internal/wallet/rates/forex_fawazahmed0.go`
+- Create: `internal/wallet/rates/forex_moneyconvert.go`
+- Create: `internal/wallet/rates/forex_test.go`
 
-### Step 1: Write the failing test
+### Step 1: Define the ForexProvider interface
 
-Create `internal/wallet/rates/fiat_test.go`:
-
-```go
-package rates
-
-import (
-    "context"
-    "net/http"
-    "net/http/httptest"
-    "testing"
-)
-
-func TestForexProviderGetRate(t *testing.T) {
-    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Content-Type", "application/json")
-        w.Write([]byte(`{"base":"USD","rates":{"EUR":"0.92","JPY":"157.50"}}`))
-    }))
-    defer server.Close()
-
-    p := NewForexProvider(WithForexURL(server.URL))
-    got, err := p.GetRate(context.Background(), "USD", "EUR")
-    if err != nil {
-        t.Fatalf("unexpected error: %v", err)
-    }
-    if got != "0.92" {
-        t.Fatalf("expected 0.92, got %s", got)
-    }
-}
-```
-
-Run test to verify it fails:
-
-```bash
-go test ./internal/wallet/rates -run TestForexProviderGetRate -v
-```
-
-Expected: FAIL — `NewForexProvider` undefined.
-
-### Step 2: Implement the forex provider
-
-Create `internal/wallet/rates/fiat.go`:
+Create `internal/wallet/rates/forex.go`:
 
 ```go
 package rates
@@ -203,87 +171,51 @@ package rates
 import (
     "context"
     "encoding/json"
-    "fmt"
-    "net/http"
     "os"
     "strings"
-    "time"
 
     "github.com/shopspring/decimal"
 )
 
-const forexDefaultURL = "https://open.er-api.com/v6/latest/USD"
-
-// ForexProvider fetches USD-to-fiat rates.
-type ForexProvider struct {
-    client *http.Client
-    url    string
-    manual map[string]string
+// ForexProvider fetches USD-to-fiat exchange rates.
+type ForexProvider interface {
+    // GetRate returns how many units of fiat 1 USD buys.
+    // Example: USD -> EUR returns "0.92".
+    GetRate(ctx context.Context, fiat string) (string, error)
+    Name() string
 }
 
-type ForexOption func(*ForexProvider)
+// ForexChain tries multiple USD-to-fiat providers in order.
+type ForexChain struct {
+    providers []ForexProvider
+    manual    map[string]string
+}
 
-func WithForexURL(u string) ForexOption {
-    return func(f *ForexProvider) {
-        f.url = u
+func NewForexChain(providers ...ForexProvider) *ForexChain {
+    return &ForexChain{
+        providers: providers,
+        manual:    loadManualUSDRates(),
     }
 }
 
-func NewForexProvider(opts ...ForexOption) *ForexProvider {
-    url := os.Getenv("FOREX_API_URL")
-    if url == "" {
-        url = forexDefaultURL
-    }
-    f := &ForexProvider{
-        client: &http.Client{Timeout: 5 * time.Second},
-        url:    url,
-        manual: loadManualUSDRates(),
-    }
-    for _, opt := range opts {
-        opt(f)
-    }
-    return f
-}
+func (fc *ForexChain) Name() string { return "forex-chain" }
 
-func (f *ForexProvider) Name() string { return "forex" }
-
-// GetRate returns the USD-to-fiat rate for the given fiat currency.
-func (f *ForexProvider) GetRate(ctx context.Context, fiat string) (string, error) {
+func (fc *ForexChain) GetRate(ctx context.Context, fiat string) (string, error) {
     fiat = strings.ToUpper(fiat)
     if fiat == "USD" {
         return "1.00", nil
     }
-    if manual, ok := f.manualRate(fiat); ok {
+    if manual, ok := fc.manual[fiat]; ok {
         return manual, nil
     }
-    req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url, nil)
-    if err != nil {
-        return "", err
+    for _, p := range fc.providers {
+        value, err := p.GetRate(ctx, fiat)
+        if err != nil {
+            continue
+        }
+        return value, nil
     }
-    resp, err := f.client.Do(req)
-    if err != nil {
-        return "", err
-    }
-    defer resp.Body.Close()
-    if resp.StatusCode != http.StatusOK {
-        return "", fmt.Errorf("forex status %d", resp.StatusCode)
-    }
-    var result struct {
-        Rates map[string]string `json:"rates"`
-    }
-    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-        return "", err
-    }
-    rate, ok := result.Rates[fiat]
-    if !ok {
-        return "", fmt.Errorf("forex missing rate for %s", fiat)
-    }
-    return strings.TrimSpace(rate), nil
-}
-
-func (f *ForexProvider) manualRate(fiat string) (string, bool) {
-    v, ok := f.manual[fiat]
-    return v, ok
+    return "", fmt.Errorf("all forex providers failed for %s", fiat)
 }
 
 func loadManualUSDRates() map[string]string {
@@ -305,19 +237,358 @@ func loadManualUSDRates() map[string]string {
 }
 ```
 
-### Step 3: Run tests
+Add `fmt` import if not already included.
+
+### Step 2: Implement open.er-api.com provider
+
+Create `internal/wallet/rates/forex_open.go`:
+
+```go
+package rates
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "strings"
+    "time"
+)
+
+const openExchangeDefaultURL = "https://open.er-api.com/v6/latest/USD"
+
+type OpenExchange struct {
+    client *http.Client
+    url    string
+}
+
+type OpenExchangeOption func(*OpenExchange)
+
+func WithOpenExchangeURL(u string) OpenExchangeOption {
+    return func(o *OpenExchange) { o.url = u }
+}
+
+func NewOpenExchange(opts ...OpenExchangeOption) *OpenExchange {
+    o := &OpenExchange{
+        client: &http.Client{Timeout: 5 * time.Second},
+        url:    openExchangeDefaultURL,
+    }
+    for _, opt := range opts {
+        opt(o)
+    }
+    return o
+}
+
+func (o *OpenExchange) Name() string { return "open-er-api" }
+
+func (o *OpenExchange) GetRate(ctx context.Context, fiat string) (string, error) {
+    fiat = strings.ToUpper(fiat)
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.url, nil)
+    if err != nil {
+        return "", err
+    }
+    resp, err := o.client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        return "", fmt.Errorf("open-er-api status %d", resp.StatusCode)
+    }
+    var result struct {
+        Rates map[string]string `json:"rates"`
+    }
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", err
+    }
+    rate, ok := result.Rates[fiat]
+    if !ok {
+        return "", fmt.Errorf("open-er-api missing rate for %s", fiat)
+    }
+    return strings.TrimSpace(rate), nil
+}
+```
+
+### Step 3: Implement Coinbase forex provider
+
+Create `internal/wallet/rates/forex_coinbase.go`:
+
+```go
+package rates
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "strings"
+    "time"
+)
+
+const coinbaseForexDefaultURL = "https://api.coinbase.com/v2/exchange-rates?currency=USD"
+
+type CoinbaseForex struct {
+    client *http.Client
+    url    string
+}
+
+type CoinbaseForexOption func(*CoinbaseForex)
+
+func WithCoinbaseForexURL(u string) CoinbaseForexOption {
+    return func(c *CoinbaseForex) { c.url = u }
+}
+
+func NewCoinbaseForex(opts ...CoinbaseForexOption) *CoinbaseForex {
+    c := &CoinbaseForex{
+        client: &http.Client{Timeout: 5 * time.Second},
+        url:    coinbaseForexDefaultURL,
+    }
+    for _, opt := range opts {
+        opt(c)
+    }
+    return c
+}
+
+func (c *CoinbaseForex) Name() string { return "coinbase-forex" }
+
+func (c *CoinbaseForex) GetRate(ctx context.Context, fiat string) (string, error) {
+    fiat = strings.ToUpper(fiat)
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
+    if err != nil {
+        return "", err
+    }
+    resp, err := c.client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        return "", fmt.Errorf("coinbase-forex status %d", resp.StatusCode)
+    }
+    var result struct {
+        Data struct {
+            Rates map[string]string `json:"rates"`
+        } `json:"data"`
+    }
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", err
+    }
+    rate, ok := result.Data.Rates[fiat]
+    if !ok {
+        return "", fmt.Errorf("coinbase-forex missing rate for %s", fiat)
+    }
+    return strings.TrimSpace(rate), nil
+}
+```
+
+### Step 4: Implement fawazahmed0/currency-api provider
+
+Create `internal/wallet/rates/forex_fawazahmed0.go`:
+
+```go
+package rates
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "strings"
+    "time"
+)
+
+const fawazAhmed0DefaultURL = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json"
+
+type FawazAhmed0 struct {
+    client *http.Client
+    url    string
+}
+
+type FawazAhmed0Option func(*FawazAhmed0)
+
+func WithFawazAhmed0URL(u string) FawazAhmed0Option {
+    return func(f *FawazAhmed0) { f.url = u }
+}
+
+func NewFawazAhmed0(opts ...FawazAhmed0Option) *FawazAhmed0 {
+    f := &FawazAhmed0{
+        client: &http.Client{Timeout: 5 * time.Second},
+        url:    fawazAhmed0DefaultURL,
+    }
+    for _, opt := range opts {
+        opt(f)
+    }
+    return f
+}
+
+func (f *FawazAhmed0) Name() string { return "fawazahmed0" }
+
+func (f *FawazAhmed0) GetRate(ctx context.Context, fiat string) (string, error) {
+    fiat = strings.ToLower(fiat)
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url, nil)
+    if err != nil {
+        return "", err
+    }
+    resp, err := f.client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        return "", fmt.Errorf("fawazahmed0 status %d", resp.StatusCode)
+    }
+    var result struct {
+        USD map[string]json.RawMessage `json:"usd"`
+    }
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", err
+    }
+    raw, ok := result.USD[fiat]
+    if !ok {
+        return "", fmt.Errorf("fawazahmed0 missing rate for %s", fiat)
+    }
+    var rate string
+    if err := json.Unmarshal(raw, &rate); err != nil {
+        return "", err
+    }
+    return strings.TrimSpace(rate), nil
+}
+```
+
+### Step 5: Implement MoneyConvert provider
+
+Create `internal/wallet/rates/forex_moneyconvert.go`:
+
+```go
+package rates
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "strings"
+    "time"
+)
+
+const moneyConvertDefaultURL = "https://cdn.moneyconvert.net/api/latest.json"
+
+type MoneyConvert struct {
+    client *http.Client
+    url    string
+}
+
+type MoneyConvertOption func(*MoneyConvert)
+
+func WithMoneyConvertURL(u string) MoneyConvertOption {
+    return func(m *MoneyConvert) { m.url = u }
+}
+
+func NewMoneyConvert(opts ...MoneyConvertOption) *MoneyConvert {
+    m := &MoneyConvert{
+        client: &http.Client{Timeout: 5 * time.Second},
+        url:    moneyConvertDefaultURL,
+    }
+    for _, opt := range opts {
+        opt(m)
+    }
+    return m
+}
+
+func (m *MoneyConvert) Name() string { return "moneyconvert" }
+
+func (m *MoneyConvert) GetRate(ctx context.Context, fiat string) (string, error) {
+    fiat = strings.ToUpper(fiat)
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.url, nil)
+    if err != nil {
+        return "", err
+    }
+    resp, err := m.client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        return "", fmt.Errorf("moneyconvert status %d", resp.StatusCode)
+    }
+    var result struct {
+        Rates map[string]string `json:"rates"`
+    }
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", err
+    }
+    rate, ok := result.Rates[fiat]
+    if !ok {
+        return "", fmt.Errorf("moneyconvert missing rate for %s", fiat)
+    }
+    return strings.TrimSpace(rate), nil
+}
+```
+
+### Step 6: Add tests
+
+Create `internal/wallet/rates/forex_test.go`:
+
+```go
+package rates
+
+import (
+    "context"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+)
+
+func TestForexChain_Fallback(t *testing.T) {
+    primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusInternalServerError)
+    }))
+    defer primary.Close()
+
+    fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        w.Write([]byte(`{"base":"USD","rates":{"EUR":"0.92"}}`))
+    }))
+    defer fallback.Close()
+
+    chain := NewForexChain(
+        NewOpenExchange(WithOpenExchangeURL(primary.URL)),
+        NewMoneyConvert(WithMoneyConvertURL(fallback.URL)),
+    )
+    got, err := chain.GetRate(context.Background(), "EUR")
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if got != "0.92" {
+        t.Fatalf("expected 0.92, got %s", got)
+    }
+}
+
+func TestForexChain_USD(t *testing.T) {
+    chain := NewForexChain()
+    got, err := chain.GetRate(context.Background(), "USD")
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if got != "1.00" {
+        t.Fatalf("expected 1.00, got %s", got)
+    }
+}
+```
+
+### Step 7: Run tests
 
 ```bash
-go test ./internal/wallet/rates -run TestForexProvider -v
+go test ./internal/wallet/rates -run TestForex -v
 ```
 
 Expected: PASS.
 
-### Step 4: Commit
+### Step 8: Commit
 
 ```bash
-git add internal/wallet/rates/fiat.go internal/wallet/rates/fiat_test.go
-git commit -m "feat(rates): add USD-to-fiat forex provider"
+git add internal/wallet/rates/forex*.go
+git commit -m "feat(rates): add four-provider USD-to-fiat fallback chain"
 ```
 
 ---
@@ -446,12 +717,12 @@ Add `forex` field to `Aggregator`:
 type Aggregator struct {
     cache     *Cache
     providers []RateProvider
-    forex     *ForexProvider
+    forex     *ForexChain
     manual    map[string]string
     mu        sync.RWMutex
 }
 
-func NewAggregator(cache *Cache, forex *ForexProvider, providers ...RateProvider) *Aggregator {
+func NewAggregator(cache *Cache, forex *ForexChain, providers ...RateProvider) *Aggregator {
     return &Aggregator{
         cache:     cache,
         providers: providers,
@@ -559,14 +830,15 @@ Add `github.com/realyoussefhossam/betmonster/internal/wallet` import? No, `MulDe
 
 **Decision:** Move `MulDecimalStrings` to `internal/wallet/rates/decimal.go` so the rates package can multiply without importing the wallet package. Remove it from `internal/wallet/decimal.go` and update callers.
 
-Create `internal/wallet/rates/decimal.go`:
+Create `internal/wallet/rates/decimal.go` (exported, replaces the wallet version):
 
 ```go
 package rates
 
 import "github.com/shopspring/decimal"
 
-func mulDecimalStrings(a, b string) (string, error) {
+// MulDecimalStrings multiplies two decimal strings and returns the result as a string.
+func MulDecimalStrings(a, b string) (string, error) {
     left, err := decimal.NewFromString(a)
     if err != nil {
         return "", err
@@ -581,9 +853,7 @@ func mulDecimalStrings(a, b string) (string, error) {
 
 Delete `internal/wallet/decimal.go` and `internal/wallet/decimal_test.go` after copying tests to `rates/decimal_test.go`.
 
-Update `internal/wallet/server.go` to use `rates.mulDecimalStrings`? It's unexported. Better to export `MulDecimalStrings` in `rates` package and use it from both. Or keep `internal/wallet/decimal.go` as a thin wrapper that calls `rates.MulDecimalStrings`.
-
-Simpler: export `MulDecimalStrings` in `rates` package and delete the wallet one. Update `internal/wallet/server.go` to use `rates.MulDecimalStrings`.
+Update `internal/wallet/server.go` to use `rates.MulDecimalStrings`.
 
 ### Step 3: Update SupportedRates
 
@@ -608,7 +878,7 @@ Add to `internal/wallet/rates/aggregator_test.go`:
 ```go
 func TestAggregatorCrossConvert(t *testing.T) {
     cache := NewCache(30 * time.Second)
-    agg := NewAggregator(cache, NewForexProvider(), NewBinance())
+    agg := NewAggregator(cache, NewForexChain(NewOpenExchange()), NewBinance())
     got, err := agg.GetRate(context.Background(), "EUR", "USDT")
     if err != nil {
         t.Fatalf("unexpected error: %v", err)
@@ -630,7 +900,8 @@ Expected: PASS (external API calls may fail offline; mark as integration test if
 ### Step 6: Commit
 
 ```bash
-git add internal/wallet/rates/aggregator.go internal/wallet/rates/aggregator_test.go internal/wallet/rates/decimal.go internal/wallet/rates/decimal_test.go internal/wallet/decimal.go internal/wallet/server.go
+git add internal/wallet/rates/aggregator.go internal/wallet/rates/aggregator_test.go internal/wallet/rates/decimal.go internal/wallet/rates/decimal_test.go internal/wallet/server.go
+git rm internal/wallet/decimal.go internal/wallet/decimal_test.go
 git commit -m "feat(rates): cross-convert crypto to any supported fiat"
 ```
 
@@ -1060,7 +1331,12 @@ Ensure the aggregator is created with the forex provider:
 
 ```go
 cache := rates.NewCache(ttl)
-forex := rates.NewForexProvider()
+forex := rates.NewForexChain(
+    rates.NewOpenExchange(),
+    rates.NewCoinbaseForex(),
+    rates.NewFawazAhmed0(),
+    rates.NewMoneyConvert(),
+)
 agg := rates.NewAggregator(cache, forex,
     rates.NewBinance(),
     rates.NewCoinbase(),
