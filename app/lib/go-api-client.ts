@@ -163,16 +163,24 @@ class GoApiClient {
     return this.request("/api/wallet/supported", { method: "GET" });
   }
 
-  async getRates(): Promise<ApiResponse<RatesResponse>> {
-    return this.request("/api/wallet/rates", { method: "GET" });
+  async getRates(fiatCurrency?: string): Promise<ApiResponse<RatesResponse>> {
+    const params = new URLSearchParams();
+    if (fiatCurrency) params.set("fiat_currency", fiatCurrency);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request(`/api/wallet/rates${query}`, { method: "GET" });
   }
 
-  async getBalance(currency: string = "USDT"): Promise<ApiResponse<BalanceResponse>> {
-    return this.request(`/api/wallet/balance?currency=${currency}`, { method: "GET" });
+  async getBalance(currency: string = "USDT", fiatCurrency?: string): Promise<ApiResponse<BalanceResponse>> {
+    const params = new URLSearchParams({ currency });
+    if (fiatCurrency) params.set("fiat_currency", fiatCurrency);
+    return this.request(`/api/wallet/balance?${params.toString()}`, { method: "GET" });
   }
 
-  async getTransactions(): Promise<ApiResponse<TransactionsResponse>> {
-    return this.request("/api/wallet/transactions", { method: "GET" });
+  async getTransactions(fiatCurrency?: string): Promise<ApiResponse<TransactionsResponse>> {
+    const params = new URLSearchParams();
+    if (fiatCurrency) params.set("fiat_currency", fiatCurrency);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request(`/api/wallet/transactions${query}`, { method: "GET" });
   }
 
   async getDepositAddress(
