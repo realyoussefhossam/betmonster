@@ -1,0 +1,3 @@
+ALTER TABLE transactions
+    ALTER COLUMN currency DROP NOT NULL,
+    ALTER COLUMN currency DROP DEFAULT;

@@ -16,11 +16,16 @@ function formatDate(value: string) {
   return isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+function isZeroBalance(balance: string): boolean {
+  return balance === "0" || balance === "0.00000000";
+}
+
 export default function WalletPage() {
   const [balances, setBalances] = useState<BalanceResponse[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showZero, setShowZero] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -39,8 +44,7 @@ export default function WalletPage() {
         );
         const loadedBalances = balanceResults
           .filter((res) => res.data)
-          .map((res) => res.data!)
-          .filter((b) => b.balance !== "0" && b.balance !== "0.00000000");
+          .map((res) => res.data!);
         setBalances(loadedBalances);
       }
 
@@ -50,17 +54,38 @@ export default function WalletPage() {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [showZero]);
+
+  const visibleBalances = balances.filter(
+    (b) => showZero || !isZeroBalance(b.balance),
+  );
+  const zeroCount = balances.filter((b) => isZeroBalance(b.balance)).length;
 
   return (
     <div className="container mx-auto max-w-2xl py-8 space-y-6">
       <h1 className="text-3xl font-bold">Wallet</h1>
       {error && <p className="text-red-500">{error}</p>}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Balances</h2>
+        {!loading && zeroCount > 0 && (
+          <button
+            onClick={() => setShowZero((v) => !v)}
+            className="text-sm text-primary underline-offset-4 hover:underline"
+            type="button"
+          >
+            {showZero ? "Hide zero balances" : `Show ${zeroCount} zero balance${zeroCount === 1 ? "" : "s"}`}
+          </button>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {loading ? (
           <WalletCard currency="..." balance="0" loading />
+        ) : visibleBalances.length === 0 ? (
+          <p className="text-muted-foreground">
+            {showZero ? "No balances found." : "No non-zero balances."}
+          </p>
         ) : (
-          balances.map((b) => (
+          visibleBalances.map((b) => (
             <WalletCard
               key={b.currency}
               currency={b.currency}
