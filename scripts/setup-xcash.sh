@@ -124,3 +124,8 @@ fi
 
 echo ""
 echo "Local xcash configured for BetMonster. Credentials written to ${BETMONSTER_ENV}."
+echo ""
+echo "Note: the local xcash stack only activates the anvil chain with USDT, USDC, and ETH."
+echo "Only anvil pairs will work for deposits here. Production chains (ethereum, bsc,"
+echo "polygon, base, arbitrum-one, tron) must be configured separately in your real"
+echo "xcash deployment before adding them to SUPPORTED_PAIRS in production."

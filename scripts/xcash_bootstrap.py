@@ -77,18 +77,25 @@ def ensure_anvil_chain(w3: Web3) -> Chain:
     return chain
 
 
-def deploy_local_contracts(w3: Web3) -> str:
-    """Deploy the USDT mock and VaultSlot contracts on anvil."""
-    usdt_address = _deploy_local_evm_erc20_contract(w3=w3)
+def deploy_local_contracts(w3: Web3) -> tuple[str, str]:
+    """Deploy USDT and USDC mocks and VaultSlot contracts on anvil."""
     ensure_chain_native_mapping(chain_name=ChainCode.Anvil, crypto_symbol="ETH")
+    usdt_address = _deploy_local_evm_erc20_contract(w3=w3)
     ensure_crypto_on_chain_mapping(
         chain_name=ChainCode.Anvil,
         crypto_symbol="USDT",
         address=usdt_address,
         decimals=6,
     )
+    usdc_address = _deploy_local_evm_erc20_contract(w3=w3)
+    ensure_crypto_on_chain_mapping(
+        chain_name=ChainCode.Anvil,
+        crypto_symbol="USDC",
+        address=usdc_address,
+        decimals=6,
+    )
     ensure_local_vault_slot_contracts(w3=w3)
-    return usdt_address
+    return usdt_address, usdc_address
 
 
 def ensure_system_wallet_funded(w3: Web3) -> str:
@@ -141,8 +148,9 @@ def main() -> int:
         chain = ensure_anvil_chain(w3)
         print(f"Anvil chain active: {chain.code} @ {chain.rpc}")
 
-        usdt_address = deploy_local_contracts(w3)
+        usdt_address, usdc_address = deploy_local_contracts(w3)
         print(f"Local USDT mock deployed at {usdt_address}")
+        print(f"Local USDC mock deployed at {usdc_address}")
 
         system_address = ensure_system_wallet_funded(w3)
         print(f"System wallet funded: {system_address}")
@@ -150,6 +158,9 @@ def main() -> int:
         project = ensure_betmonster_project()
         print(f"Project ready: {project.name} ({project.appid})")
 
+        print()
+        print("# Active local pairs (anvil only):")
+        print("#   USDT:anvil, USDC:anvil, ETH:anvil")
         print()
         print("# Add these values to your BetMonster .env:")
         print(f"XCASH_BASE_URL=http://localhost:6688")

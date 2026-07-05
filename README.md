@@ -30,21 +30,25 @@ The v1 implementation supports the EVM and Tron assets that xcash can process. S
 
 ### Configuring pairs
 
-Set `SUPPORTED_PAIRS` in `.env` to define which currency exists on which chain. The default in `.env.example` includes `anvil:*` pairs for local testing with `setup-xcash.sh`; remove them in production.
+Set `SUPPORTED_PAIRS` in `.env` to define which currency exists on which chain. `SUPPORTED_CURRENCIES` and `SUPPORTED_CHAINS` are derived from it automatically. You can set them explicitly if you need to hide a currency or chain from the UI without removing the underlying pair.
+
+The default `.env.example` includes `anvil:*` pairs for local testing with `setup-xcash.sh`. Remove `anvil:*` in production.
 
 ```bash
 SUPPORTED_PAIRS=USDT:anvil,USDT:ethereum,USDT:bsc,USDT:polygon,USDT:tron,USDC:anvil,USDC:ethereum,USDC:bsc,USDC:polygon,USDC:base,USDC:arbitrum-one,ETH:anvil,ETH:ethereum,ETH:bsc,ETH:base,BNB:bsc,TRX:tron,POL:ethereum,POL:polygon,DAI:ethereum,SHIB:ethereum,BUSD:bsc
 ```
 
-`SUPPORTED_CURRENCIES` and `SUPPORTED_CHAINS` are derived from `SUPPORTED_PAIRS` automatically. You can set them explicitly if you need to hide a currency or chain from the UI without removing the underlying pair.
+### Local vs production
+
+`scripts/setup-xcash.sh` only provisions the local **anvil** chain with **USDT**, **USDC**, and **ETH** mapped to it. Only `USDT:anvil`, `USDC:anvil`, and `ETH:anvil` will actually work for deposits in the local Docker stack. The other pairs are kept in `.env` as the production reference; deposit calls for non-anvil pairs will fail against the local xcash because those chains are not active locally.
 
 ### Adding or removing assets
 
-1. Register the currency and chain in xcash (for EVM: activate the chain and map the token contract via `CryptoOnChain`; for Tron: only `USDT` and `TRX` are supported for deposit addresses).
+1. Register the currency and chain in your xcash deployment (for EVM: activate the chain and map the token contract via `CryptoOnChain`; for Tron: only `USDT` and `TRX` are supported for deposit addresses).
 2. Add or remove the pair from `SUPPORTED_PAIRS` in `.env`.
 3. Restart the gateway and wallet containers.
 
-BTC, SOL, LTC, DOGE, and XRP require non-EVM pipeline work and are out of scope for v1.
+BTC, SOL, LTC, DOGE, XRP, AVAX, and TON require non-EVM/non-Tron pipeline work and are out of scope for v1.
 
 ## Architecture
 
