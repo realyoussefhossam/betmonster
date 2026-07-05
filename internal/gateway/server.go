@@ -161,24 +161,6 @@ func firstOrEmpty(parts []string) string {
 	return parts[0]
 }
 
-func firstPairCurrency(pairs map[string]struct{}) string {
-	for pair := range pairs {
-		parts := strings.SplitN(pair, ":", 2)
-		return parts[0]
-	}
-	return ""
-}
-
-func firstPairChain(pairs map[string]struct{}, currency string) string {
-	for pair := range pairs {
-		parts := strings.SplitN(pair, ":", 2)
-		if parts[0] == currency {
-			return parts[1]
-		}
-	}
-	return ""
-}
-
 func (s *Server) Router() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/health", server.WithRoutePattern("/health", http.HandlerFunc(s.handleHealth)))
