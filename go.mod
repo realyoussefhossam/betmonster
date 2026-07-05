@@ -3,6 +3,7 @@ module github.com/realyoussefhossam/betmonster
 go 1.26.4
 
 require (
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
@@ -41,6 +42,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.53.0 // indirect

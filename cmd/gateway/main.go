@@ -29,6 +29,13 @@ func main() {
 	}
 
 	limiter := gateway.NewRateLimiter(cfg.RateLimitBackend, cfg.RedisAddr, cfg.RateLimitRPS, cfg.RateLimitBurst)
+	defer limiter.Close()
+	if cfg.RateLimitBackend == "redis" {
+		if err := limiter.Ping(context.Background()); err != nil {
+			logger.Error("failed to connect to redis", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}
 
 	server := gateway.NewServer(logger, walletClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains)
 	logger.Info("gateway starting", slog.String("port", cfg.Port))

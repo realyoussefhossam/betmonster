@@ -140,16 +140,14 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 			s.writeError(w, http.StatusUnauthorized, err)
 			return
 		}
-		ctx := context.WithValue(r.Context(), "user", user)
-		ctx = context.WithValue(ctx, "userID", user.ID)
-		ctx = context.WithValue(ctx, UserContextKey, user)
+		ctx := context.WithValue(r.Context(), UserContextKey, user)
 		next(w, r.WithContext(ctx))
 	})
 }
 
 func (s *Server) admin(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value("user").(auth.User)
+		user, ok := r.Context().Value(UserContextKey).(auth.User)
 		if !ok {
 			s.writeError(w, http.StatusUnauthorized, nil)
 			return
@@ -163,7 +161,7 @@ func (s *Server) admin(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(auth.User)
+	user := r.Context().Value(UserContextKey).(auth.User)
 	currency := r.URL.Query().Get("currency")
 	if currency == "" {
 		currency = "USDT"
@@ -177,7 +175,7 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTransactions(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(auth.User)
+	user := r.Context().Value(UserContextKey).(auth.User)
 	resp, err := s.wallet.ListTransactions(r.Context(), user.ID, 1, 20)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err)
@@ -187,7 +185,7 @@ func (s *Server) handleTransactions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDepositAddress(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(auth.User)
+	user := r.Context().Value(UserContextKey).(auth.User)
 	q := r.URL.Query()
 	currency := q.Get("currency")
 	chain := q.Get("chain")
@@ -206,7 +204,7 @@ func (s *Server) handleDepositAddress(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(auth.User)
+	user := r.Context().Value(UserContextKey).(auth.User)
 	var body struct {
 		Currency           string `json:"currency"`
 		Amount             string `json:"amount"`
@@ -250,7 +248,7 @@ func (s *Server) handleReviewWithdrawal(w http.ResponseWriter, r *http.Request) 
 		s.writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	user := r.Context().Value("user").(auth.User)
+	user := r.Context().Value(UserContextKey).(auth.User)
 	resp, err := s.wallet.ReviewWithdrawal(r.Context(), body.WithdrawalID, body.Action, body.TxHash, user.ID)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err)

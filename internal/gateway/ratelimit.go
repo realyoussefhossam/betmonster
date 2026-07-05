@@ -15,10 +15,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const (
-	retryAfterSeconds = 60
-	windowSeconds     = 60
-)
+const windowSeconds = 60
 
 // userKey is the context key used to store the authenticated user.
 type userKey struct{}
@@ -36,8 +33,6 @@ type RateLimiter struct {
 
 	rate  rate.Limit
 	burst int
-
-	maxWindow int
 }
 
 // NewRateLimiter creates a rate limiter for the given backend.
@@ -57,7 +52,12 @@ func NewRateLimiter(backend, redisAddr string, rps, burst int) *RateLimiter {
 			redisAddr = "redis:6379"
 		}
 		redisClient = redis.NewClient(&redis.Options{
-			Addr: redisAddr,
+			Addr:         redisAddr,
+			PoolSize:     100,
+			DialTimeout:  5 * time.Second,
+			ReadTimeout:  3 * time.Second,
+			WriteTimeout: 3 * time.Second,
+			MaxRetries:   3,
 		})
 	}
 
@@ -67,8 +67,23 @@ func NewRateLimiter(backend, redisAddr string, rps, burst int) *RateLimiter {
 		limiters: make(map[string]*rate.Limiter),
 		rate:     rate.Limit(rps),
 		burst:    burst,
-		maxWindow: rps * windowSeconds,
 	}
+}
+
+// Ping verifies the Redis connection is reachable. It is a no-op for the memory backend.
+func (rl *RateLimiter) Ping(ctx context.Context) error {
+	if rl.redis == nil {
+		return nil
+	}
+	return rl.redis.Ping(ctx).Err()
+}
+
+// Close closes the Redis connection. It is a no-op for the memory backend.
+func (rl *RateLimiter) Close() error {
+	if rl.redis == nil {
+		return nil
+	}
+	return rl.redis.Close()
 }
 
 // Middleware returns an HTTP handler that applies rate limiting.
@@ -77,12 +92,12 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		key := rl.key(r)
 		allowed, err := rl.allow(r.Context(), key)
 		if err != nil {
-			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
+			w.Header().Set("Retry-After", strconv.Itoa(windowSeconds))
 			http.Error(w, "rate limiter unavailable", http.StatusTooManyRequests)
 			return
 		}
 		if !allowed {
-			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
+			w.Header().Set("Retry-After", strconv.Itoa(windowSeconds))
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
@@ -94,12 +109,6 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 func (rl *RateLimiter) key(r *http.Request) string {
 	ip := clientIP(r)
 	user := r.Context().Value(UserContextKey)
-	if user == nil {
-		user = r.Context().Value("user")
-	}
-	if user == nil {
-		user = r.Context().Value("userID")
-	}
 	if user != nil {
 		if u, ok := user.(auth.User); ok {
 			return fmt.Sprintf("%s:%s", ip, u.ID)
@@ -109,13 +118,16 @@ func (rl *RateLimiter) key(r *http.Request) string {
 	return ip
 }
 
-// clientIP returns the client IP from X-Forwarded-For or RemoteAddr.
+// clientIP returns the client IP. If an X-Forwarded-For header is present, the
+// rightmost IP is used (the one closest to the gateway). This is intended for
+// deployments where the gateway runs behind a trusted reverse proxy. If no
+// trusted proxy is configured, use the RemoteAddr directly.
 func clientIP(r *http.Request) string {
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		first := strings.Split(fwd, ",")[0]
-		first = strings.TrimSpace(first)
-		if first != "" {
-			return first
+		parts := strings.Split(fwd, ",")
+		last := strings.TrimSpace(parts[len(parts)-1])
+		if last != "" {
+			return last
 		}
 	}
 
@@ -160,25 +172,45 @@ func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
 	return lim
 }
 
-// allowRedis uses a sliding-window counter in Redis.
-// The window is 60 seconds and the maximum number of requests in that window
-// is rps * 60.
+// allowRedis uses a token bucket stored in Redis. The bucket is refilled at
+// rl.rate tokens per second and capped at rl.burst tokens. Timestamps are
+// seconds since epoch, so the refill rate is rate tokens per second.
 func (rl *RateLimiter) allowRedis(ctx context.Context, key string) (bool, error) {
 	now := time.Now().Unix()
-	windowStart := now - windowSeconds
 
 	lua := `
-		redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[2])
-		local count = redis.call('ZCARD', KEYS[1])
-		if count < tonumber(ARGV[3]) then
-			redis.call('ZADD', KEYS[1], ARGV[1], ARGV[1])
-			redis.call('EXPIRE', KEYS[1], 60)
+		local key = KEYS[1]
+		local now = tonumber(ARGV[1])
+		local rate = tonumber(ARGV[2])
+		local burst = tonumber(ARGV[3])
+
+		local state = redis.call('HMGET', key, 'tokens', 'ts')
+		local tokens = state[1]
+		local ts = state[2]
+
+		if tokens == false then
+			tokens = burst
+			ts = now
+		else
+			tokens = tonumber(tokens)
+			ts = tonumber(ts)
+			local delta = (now - ts) * rate
+			tokens = math.min(burst, tokens + delta)
+		end
+
+		if tokens >= 1 then
+			tokens = tokens - 1
+			redis.call('HSET', key, 'tokens', tokens, 'ts', now)
+			redis.call('EXPIRE', key, 120)
 			return 1
 		end
+
+		redis.call('HSET', key, 'tokens', tokens, 'ts', now)
+		redis.call('EXPIRE', key, 120)
 		return 0
 	`
 
-	res, err := rl.redis.Eval(ctx, lua, []string{key}, now, windowStart, rl.maxWindow).Result()
+	res, err := rl.redis.Eval(ctx, lua, []string{key}, now, int64(rl.rate), rl.burst).Result()
 	if err != nil {
 		return false, err
 	}
