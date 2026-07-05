@@ -74,16 +74,16 @@ func splitTrim(s string) []string {
 
 func (s *Server) Router() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", s.handleHealth)
-	mux.Handle("/metrics", server.MetricsHandler())
-	mux.HandleFunc("/api/wallet/supported", s.handleSupported)
-	mux.Handle("/api/wallet/balance", s.auth(http.HandlerFunc(s.handleBalance)))
-	mux.Handle("/api/wallet/transactions", s.auth(http.HandlerFunc(s.handleTransactions)))
-	mux.Handle("/api/wallet/deposit-address", s.auth(http.HandlerFunc(s.handleDepositAddress)))
-	mux.Handle("/api/wallet/withdraw", s.auth(http.HandlerFunc(s.handleWithdraw)))
-	mux.Handle("/api/admin/withdrawals", s.auth(s.admin(http.HandlerFunc(s.handleListPendingWithdrawals))))
-	mux.Handle("/api/admin/withdrawals/review", s.auth(s.admin(http.HandlerFunc(s.handleReviewWithdrawal))))
-	mux.HandleFunc("/webhooks/xcash/deposit", s.handleXcashWebhook)
+	mux.Handle("/health", server.WithRoutePattern("/health", http.HandlerFunc(s.handleHealth)))
+	mux.Handle("/metrics", server.WithRoutePattern("/metrics", server.MetricsHandler()))
+	mux.Handle("/api/wallet/supported", server.WithRoutePattern("/api/wallet/supported", http.HandlerFunc(s.handleSupported)))
+	mux.Handle("/api/wallet/balance", server.WithRoutePattern("/api/wallet/balance", s.auth(http.HandlerFunc(s.handleBalance))))
+	mux.Handle("/api/wallet/transactions", server.WithRoutePattern("/api/wallet/transactions", s.auth(http.HandlerFunc(s.handleTransactions))))
+	mux.Handle("/api/wallet/deposit-address", server.WithRoutePattern("/api/wallet/deposit-address", s.auth(http.HandlerFunc(s.handleDepositAddress))))
+	mux.Handle("/api/wallet/withdraw", server.WithRoutePattern("/api/wallet/withdraw", s.auth(http.HandlerFunc(s.handleWithdraw))))
+	mux.Handle("/api/admin/withdrawals", server.WithRoutePattern("/api/admin/withdrawals", s.auth(s.admin(http.HandlerFunc(s.handleListPendingWithdrawals)))))
+	mux.Handle("/api/admin/withdrawals/review", server.WithRoutePattern("/api/admin/withdrawals/review", s.auth(s.admin(http.HandlerFunc(s.handleReviewWithdrawal)))))
+	mux.Handle("/webhooks/xcash/deposit", server.WithRoutePattern("/webhooks/xcash/deposit", http.HandlerFunc(s.handleXcashWebhook)))
 	return server.RequestID(server.Logging(s.logger, server.Metrics(s.cors(mux))))
 }
 
