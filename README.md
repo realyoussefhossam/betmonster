@@ -6,23 +6,23 @@ BetMonster is an open-source, self-hosted sportsbook/casino platform. The v1 foc
 
 ## Supported Assets
 
-The platform is designed to support multiple crypto assets. The current v1 implementation is limited to the assets that xcash can process, but the wallet schema and gateway are asset-agnostic.
+The platform is designed to support multiple crypto assets. The current v1 implementation supports every asset and chain that xcash can process. The wallet schema and gateway are asset-agnostic, so additional non-xcash assets can be added later.
 
 | Asset | Networks | v1 status | Notes |
 |-------|----------|-----------|-------|
-| USDT | ERC20, TRC20, BEP20, Solana, Base | **Supported** | Default stablecoin for wagering. |
-| USDC | ERC20, Solana, Arbitrum, Base, others | **Supported** | Alternative stablecoin. |
-| BTC | Bitcoin Network | Future | Larger deposits, time-tested. |
-| ETH | Ethereum, Base, EVM chains | Future | Flexible deposits. |
-| BETM | ERC20 | **Native token** (v1 optional) | Project-native token used for gaming features and platform rewards. Rename to your project ticker. |
-| SOL | Solana | Future | Low fees and quick confirmations. |
-| LTC | Litecoin | Future | Low cost and reliable. |
-| BNB | BNB Smart Chain | Future | Fast and inexpensive. |
-| DOGE | Dogecoin Network | Future | Light and simple deposits. |
-| TRX | Tron Network | Future | Very low fees. |
-| XRP | XRP Ledger | Future | Requires destination tags. |
+| USDT | ERC20, TRC20, BEP20, Base, other EVM | **Supported** | Default stablecoin for wagering. |
+| USDC | ERC20, TRC20, BEP20, Base, other EVM | **Supported** | Alternative stablecoin. |
+| ETH | Ethereum, Base, other EVM | **Supported** | Native EVM asset. |
+| BETM | ERC20, other EVM | **Native token** (optional) | Project-native token used for gaming features and rewards. Rename to your project ticker. |
+| BNB | BNB Smart Chain | **Supported** | EVM-compatible chain. |
+| TRX | Tron Network | **Supported** | Very low fees. |
+| BTC | Bitcoin Network | Future | Non-EVM / non-Tron chain. |
+| SOL | Solana | Future | Non-EVM / non-Tron chain. |
+| LTC | Litecoin | Future | Non-EVM / non-Tron chain. |
+| DOGE | Dogecoin Network | Future | Non-EVM / non-Tron chain. |
+| XRP | XRP Ledger | Future | Non-EVM / non-Tron chain; requires destination tags. |
 
-The v1 gateway defaults to `SUPPORTED_CURRENCIES=USDT,USDC` and `SUPPORTED_CHAINS=anvil`. Operators can extend the list once the deposit/withdrawal pipeline supports the additional chain and asset.
+The v1 gateway defaults to `SUPPORTED_CURRENCIES=USDT,USDC` and `SUPPORTED_CHAINS=anvil`. Operators can enable any EVM or Tron asset/chain that xcash supports by updating `SUPPORTED_CURRENCIES` and `SUPPORTED_CHAINS`. BTC, SOL, LTC, DOGE, and XRP require non-EVM pipeline work and are out of scope for v1.
 
 ## Architecture
 

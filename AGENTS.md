@@ -23,9 +23,9 @@ Build an **open-source, self-hosted sportsbook/casino platform** — similar to 
 
 - **Microservices from v1**: gateway and wallet are separate Go binaries with their own database.
 - **Internal communication**: gRPC (gateway → wallet), NATS for events.
-- **Wallet model**: per-currency balances. v1 supports `USDT` and `USDC`; the schema is asset-agnostic so more can be added later.
-- **Supported asset roadmap**: USDT/USDC in v1; BTC, ETH, SOL, LTC, BNB, DOGE, TRX, XRP, and an optional native token (e.g., `BETM`) documented for future slices.
-- **Deposits**: xcash per-user deposit address (`GET /v1/deposit/address`) + webhook (`type: deposit`). Limited to assets/chains xcash can process.
+- **Wallet model**: per-currency balances. v1 supports every EVM and Tron asset that xcash can process; the schema is asset-agnostic so non-xcash assets can be added later.
+- **Supported asset roadmap**: v1 supports USDT, USDC, ETH, BNB, TRX, and an optional native token (e.g., `BETM`) on EVM/Tron chains. BTC, SOL, LTC, DOGE, XRP are future non-EVM/non-Tron assets.
+- **Deposits**: xcash per-user deposit address (`GET /v1/deposit/address`) + webhook (`type: deposit`). xcash handles EVM chains and Tron; non-EVM assets are future work.
 - **Withdrawals**: manual admin in v1. The wallet debits on request, admin approves and supplies the on-chain tx hash.
 - **xcash does not support withdrawals**. Withdrawals must be handled outside xcash.
 
