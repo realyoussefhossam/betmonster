@@ -26,6 +26,10 @@ func NewWalletClient(addr string) (*WalletClient, error) {
 	return &WalletClient{conn: pb.NewWalletServiceClient(conn)}, nil
 }
 
+func (c *WalletClient) GetRates(ctx context.Context) (*pb.GetRatesResponse, error) {
+	return c.conn.GetRates(ctx, &pb.GetRatesRequest{})
+}
+
 func (c *WalletClient) GetBalance(ctx context.Context, userID, currency string) (*pb.GetBalanceResponse, error) {
 	return c.conn.GetBalance(ctx, &pb.GetBalanceRequest{UserId: userID, Currency: currency})
 }

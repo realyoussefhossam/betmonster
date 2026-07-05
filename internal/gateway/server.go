@@ -166,6 +166,7 @@ func (s *Server) Router() http.Handler {
 	mux.Handle("/health", server.WithRoutePattern("/health", http.HandlerFunc(s.handleHealth)))
 	mux.Handle("/metrics", server.WithRoutePattern("/metrics", server.MetricsHandler()))
 	mux.Handle("/api/wallet/supported", server.WithRoutePattern("/api/wallet/supported", http.HandlerFunc(s.handleSupported)))
+	mux.Handle("/api/wallet/rates", server.WithRoutePattern("/api/wallet/rates", http.HandlerFunc(s.handleRates)))
 	mux.Handle("/api/wallet/balance", server.WithRoutePattern("/api/wallet/balance", s.auth(http.HandlerFunc(s.handleBalance))))
 	mux.Handle("/api/wallet/transactions", server.WithRoutePattern("/api/wallet/transactions", s.auth(http.HandlerFunc(s.handleTransactions))))
 	mux.Handle("/api/wallet/deposit-address", server.WithRoutePattern("/api/wallet/deposit-address", s.auth(http.HandlerFunc(s.handleDepositAddress))))
@@ -222,6 +223,18 @@ func (s *Server) handleSupported(w http.ResponseWriter, r *http.Request) {
 		"currencies": s.supportedCurrencies,
 		"chains":     s.supportedChains,
 		"pairs":      pairs,
+	})
+}
+
+func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
+	resp, err := s.wallet.GetRates(r.Context())
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"fiat_currency": resp.FiatCurrency,
+		"rates":         resp.Rates,
 	})
 }
 
