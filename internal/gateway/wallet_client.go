@@ -26,16 +26,16 @@ func NewWalletClient(addr string) (*WalletClient, error) {
 	return &WalletClient{conn: pb.NewWalletServiceClient(conn)}, nil
 }
 
-func (c *WalletClient) GetRates(ctx context.Context) (*pb.GetRatesResponse, error) {
-	return c.conn.GetRates(ctx, &pb.GetRatesRequest{})
+func (c *WalletClient) GetRates(ctx context.Context, fiat string) (*pb.GetRatesResponse, error) {
+	return c.conn.GetRates(ctx, &pb.GetRatesRequest{FiatCurrency: fiat})
 }
 
-func (c *WalletClient) GetBalance(ctx context.Context, userID, currency string) (*pb.GetBalanceResponse, error) {
-	return c.conn.GetBalance(ctx, &pb.GetBalanceRequest{UserId: userID, Currency: currency})
+func (c *WalletClient) GetBalance(ctx context.Context, userID, currency, fiat string) (*pb.GetBalanceResponse, error) {
+	return c.conn.GetBalance(ctx, &pb.GetBalanceRequest{UserId: userID, Currency: currency, FiatCurrency: fiat})
 }
 
-func (c *WalletClient) ListTransactions(ctx context.Context, userID string, page, pageSize int) (*pb.ListTransactionsResponse, error) {
-	return c.conn.ListTransactions(ctx, &pb.ListTransactionsRequest{UserId: userID, Page: int32(page), PageSize: int32(pageSize)})
+func (c *WalletClient) ListTransactions(ctx context.Context, userID, fiat string, page, pageSize int) (*pb.ListTransactionsResponse, error) {
+	return c.conn.ListTransactions(ctx, &pb.ListTransactionsRequest{UserId: userID, FiatCurrency: fiat, Page: int32(page), PageSize: int32(pageSize)})
 }
 
 func (c *WalletClient) GetDepositAddress(ctx context.Context, userID, currency, chain string) (*pb.GetDepositAddressResponse, error) {

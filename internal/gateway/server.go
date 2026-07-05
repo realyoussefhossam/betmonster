@@ -227,7 +227,8 @@ func (s *Server) handleSupported(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.wallet.GetRates(r.Context())
+	fiat := r.URL.Query().Get("fiat_currency")
+	resp, err := s.wallet.GetRates(r.Context(), fiat)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err)
 		return
@@ -279,7 +280,9 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	currency := r.URL.Query().Get("currency")
+	q := r.URL.Query()
+	currency := q.Get("currency")
+	fiat := q.Get("fiat_currency")
 	if currency == "" {
 		currency = firstOrEmpty(s.supportedCurrencies)
 	}
@@ -287,7 +290,7 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency: %s", currency))
 		return
 	}
-	resp, err := s.wallet.GetBalance(r.Context(), user.ID, currency)
+	resp, err := s.wallet.GetBalance(r.Context(), user.ID, currency, fiat)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err)
 		return
@@ -300,7 +303,8 @@ func (s *Server) handleTransactions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	resp, err := s.wallet.ListTransactions(r.Context(), user.ID, 1, 20)
+	fiat := r.URL.Query().Get("fiat_currency")
+	resp, err := s.wallet.ListTransactions(r.Context(), user.ID, fiat, 1, 20)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err)
 		return
