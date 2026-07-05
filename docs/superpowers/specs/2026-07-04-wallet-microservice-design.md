@@ -51,10 +51,28 @@ BetMonster is an open-source, self-hosted sportsbook/casino platform. The existi
 
 ## 5. Currency Model
 
-- Each user has one wallet per currency: `USDT`, `USDC`.
-- v1 supports only these two stablecoins.
+- Each user has one wallet per currency.
+- v1 supports `USDT` and `USDC` on the chains that xcash can process (e.g., `anvil`, `base`).
+- The schema is asset-agnostic; future currencies and chains can be added without changing the wallet table.
 - No currency conversion is performed; deposits credit the matching wallet.
-- Future currencies can be added without changing the schema.
+
+### Asset Roadmap
+
+| Asset | Networks | v1 status | Notes |
+|-------|----------|-----------|-------|
+| USDT | ERC20, TRC20, BEP20, Solana, Base | **Supported** | Default stablecoin. |
+| USDC | ERC20, Solana, Arbitrum, Base, others | **Supported** | Alternative stablecoin. |
+| BETM | ERC20 | **Native token** (optional) | Project-native token used for gaming features and rewards. Operators can rename the ticker. |
+| BTC | Bitcoin Network | Future | On-chain deposits require a Bitcoin-capable gateway. |
+| ETH | Ethereum, Base, EVM chains | Future | Flexible deposits. |
+| SOL | Solana | Future | Low-fee, fast confirmations. |
+| LTC | Litecoin | Future | Low-cost, reliable. |
+| BNB | BNB Smart Chain | Future | Fast, inexpensive. |
+| DOGE | Dogecoin Network | Future | Light, simple. |
+| TRX | Tron Network | Future | Very low fees. |
+| XRP | XRP Ledger | Future | Requires destination tags. |
+
+v1 operators can enable `USDT`/`USDC` only. Additional assets require extending the deposit/withdrawal pipeline and the chain integration.
 
 ## 6. Deposit Flow
 

@@ -4,6 +4,26 @@
 
 BetMonster is an open-source, self-hosted sportsbook/casino platform. The v1 focus is a **wallet microservice** that supports USDT/USDC deposits via [xcash](https://github.com/xca-sh/xcash) and manual admin withdrawals.
 
+## Supported Assets
+
+The platform is designed to support multiple crypto assets. The current v1 implementation is limited to the assets that xcash can process, but the wallet schema and gateway are asset-agnostic.
+
+| Asset | Networks | v1 status | Notes |
+|-------|----------|-----------|-------|
+| USDT | ERC20, TRC20, BEP20, Solana, Base | **Supported** | Default stablecoin for wagering. |
+| USDC | ERC20, Solana, Arbitrum, Base, others | **Supported** | Alternative stablecoin. |
+| BTC | Bitcoin Network | Future | Larger deposits, time-tested. |
+| ETH | Ethereum, Base, EVM chains | Future | Flexible deposits. |
+| BETM | ERC20 | **Native token** (v1 optional) | Project-native token used for gaming features and platform rewards. Rename to your project ticker. |
+| SOL | Solana | Future | Low fees and quick confirmations. |
+| LTC | Litecoin | Future | Low cost and reliable. |
+| BNB | BNB Smart Chain | Future | Fast and inexpensive. |
+| DOGE | Dogecoin Network | Future | Light and simple deposits. |
+| TRX | Tron Network | Future | Very low fees. |
+| XRP | XRP Ledger | Future | Requires destination tags. |
+
+The v1 gateway defaults to `SUPPORTED_CURRENCIES=USDT,USDC` and `SUPPORTED_CHAINS=anvil`. Operators can extend the list once the deposit/withdrawal pipeline supports the additional chain and asset.
+
 ## Architecture
 
 - **Next.js + Better Auth**: auth, sessions, UI, admin dashboard.

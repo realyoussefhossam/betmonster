@@ -95,7 +95,8 @@
 - [ ] Sportsbook engine (events, odds, bet types, settlement).
 - [ ] Casino games (crash, slots, provably fair).
 - [ ] Automated withdrawals via hot wallet.
-- [ ] Multi-currency support beyond USDT/USDC.
+- [ ] Multi-currency support beyond USDT/USDC (BTC, ETH, SOL, LTC, BNB, DOGE, TRX, XRP).
+- [ ] Native token support (e.g., BETM) for platform gaming and rewards.
 - [ ] Risk management, KYC/AML, geolocation.
 - [ ] Multi-tenant operator support.
 - [ ] Native mobile apps or PWA.
