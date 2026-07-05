@@ -34,6 +34,13 @@ ADMIN_USER_IDS=
 # For production, copy the pair list from .env.example and remove anvil:*.
 SUPPORTED_PAIRS=USDT:anvil,USDT:ethereum,USDT:bsc,USDT:polygon,USDT:tron,USDC:anvil,USDC:ethereum,USDC:bsc,USDC:polygon,USDC:base,USDC:arbitrum-one,ETH:anvil,ETH:ethereum,ETH:bsc,ETH:base,BNB:bsc,TRX:tron,POL:ethereum,POL:polygon,DAI:ethereum,SHIB:ethereum,BUSD:bsc
 
+# Optional: override exchange rates for operator tokens or test environments.
+# Example: MANUAL_RATES={"BETM":"0.50","SHIB":"0.000025"}
+MANUAL_RATES=
+
+# Optional: rate cache TTL in seconds (default: 30).
+RATES_CACHE_TTL_SECONDS=30
+
 WALLET_PORT=8081
 DATABASE_URL=postgres://wallet:wallet@localhost:5433/wallet?sslmode=disable
 REDIS_ADDR=localhost:6379
