@@ -1,7 +1,7 @@
 # Go binaries
 api/api
 api/*.exe
-gateway
+/gateway
 bin/
 *.exe
 
