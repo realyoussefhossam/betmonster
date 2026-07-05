@@ -27,9 +27,11 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
-  const { fiat, setFiat } = useFiatCurrency();
+  const { fiat, setFiat, isReady } = useFiatCurrency();
 
   useEffect(() => {
+    if (!isReady) return;
+
     async function load() {
       setLoading(true);
       setError(null);
@@ -59,7 +61,7 @@ export default function WalletPage() {
     }
 
     load();
-  }, [fiat, showZero]);
+  }, [fiat, showZero, isReady]);
 
   const visibleBalances = balances.filter(
     (b) => showZero || !isZeroBalance(b.balance),

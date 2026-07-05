@@ -8,6 +8,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   ReactNode,
 } from "react";
 import { goApiClient } from "@/lib/go-api-client";
@@ -29,6 +30,7 @@ interface FiatContextValue {
   setFiat: (value: string) => void;
   rates: Record<string, string> | null;
   ratesLoading: boolean;
+  isReady: boolean;
 }
 
 const FiatContext = createContext<FiatContextValue>({
@@ -36,6 +38,7 @@ const FiatContext = createContext<FiatContextValue>({
   setFiat: () => {},
   rates: null,
   ratesLoading: false,
+  isReady: false,
 });
 
 function getStoredFiat(): string {
@@ -75,6 +78,7 @@ export function FiatProvider({ children }: { children: ReactNode }) {
     (_state: string, action: string) => action,
     "USD",
   );
+  const [isReady, setIsReady] = useState(false);
   const [ratesState, dispatchRates] = useReducer(ratesReducer, {
     rates: null,
     loading: false,
@@ -88,6 +92,7 @@ export function FiatProvider({ children }: { children: ReactNode }) {
     if (saved !== fiat) {
       setFiatState(saved);
     }
+    setIsReady(true);
   }, [fiat]);
 
   useEffect(() => {
@@ -138,8 +143,9 @@ export function FiatProvider({ children }: { children: ReactNode }) {
       setFiat,
       rates: ratesState.rates,
       ratesLoading: ratesState.loading,
+      isReady,
     }),
-    [fiat, setFiat, ratesState],
+    [fiat, setFiat, ratesState, isReady],
   );
 
   return (
