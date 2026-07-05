@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"time"
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 )
@@ -34,6 +35,7 @@ func (s *GRPCServer) ListTransactions(ctx context.Context, req *pb.ListTransacti
 			Id: t.ID, UserId: t.UserID, WalletId: t.WalletID, Type: t.Type,
 			Amount: t.Amount, BalanceBefore: t.BalanceBefore, BalanceAfter: t.BalanceAfter,
 			Status: t.Status, ReferenceId: t.ReferenceID, Metadata: t.Metadata,
+			CreatedAt: t.CreatedAt.Format(time.RFC3339),
 		}
 	}
 	return &pb.ListTransactionsResponse{Transactions: out}, nil
@@ -70,6 +72,7 @@ func (s *GRPCServer) ListPendingWithdrawals(ctx context.Context, req *pb.ListPen
 		out[i] = &pb.WithdrawalRequest{
 			Id: w.ID, UserId: w.UserID, Currency: w.Currency, Amount: w.Amount,
 			DestinationAddress: w.DestinationAddress, Chain: w.Chain, Status: w.Status, TxHash: w.TxHash,
+			CreatedAt: w.CreatedAt.Format(time.RFC3339),
 		}
 	}
 	return &pb.ListPendingWithdrawalsResponse{Withdrawals: out}, nil
