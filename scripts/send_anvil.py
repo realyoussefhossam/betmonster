@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
-"""Send a test token on the local anvil chain.
+"""Send a test currency on the local anvil chain.
 
-Runs inside the xcash Django container. It looks up the token contract
-address and decimals from the xcash database, then mints the requested amount
-from anvil account 0 to the destination address.
+Runs inside the xcash Django container. For ERC20 tokens it looks up the
+contract address and decimals from the xcash database, then mints the requested
+amount from anvil account 0. For native tokens (e.g. ETH) it transfers value
+directly from anvil account 0.
 
 Usage (inside xcash_django container):
-    python /tmp/send_anvil.py <currency> <destination_address> [amount]
+    python /tmp/send_anvil.py [currency] <destination_address> [amount]
 
 Arguments:
-    currency          Token symbol, e.g. USDT or USDC (default: USDT)
-    destination_address  EVM address to receive the tokens
-    amount            Amount to mint (default: 10)
+    currency          Token symbol, e.g. ETH, USDT or USDC (default: USDT)
+    destination_address  EVM address to receive the funds
+    amount            Amount to send (default: 10)
 
 Examples:
+    python /tmp/send_anvil.py ETH 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 1
     python /tmp/send_anvil.py USDT 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 20
-    python /tmp/send_anvil.py USDC 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 5
+    python /tmp/send_anvil.py 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 5
 """
 from __future__ import annotations
 
@@ -84,13 +86,17 @@ ERC20_ABI = [
 ]
 
 
-def get_token_config(currency: str) -> tuple[str, int]:
-    """Return (contract_address, decimals) for the given currency on anvil."""
+def get_token_config(currency: str) -> tuple[str | None, int]:
+    """Return (contract_address, decimals) for the given currency on anvil.
+
+    A None contract address means the currency is native (e.g. ETH).
+    """
     chain = Chain.objects.get(code=ChainCode.Anvil)
     mapping = CryptoOnChain.objects.get(chain=chain, crypto__symbol=currency.upper())
-    if not mapping.address:
-        raise RuntimeError(f"No contract address configured for {currency} on anvil chain")
-    return Web3.to_checksum_address(mapping.address), mapping.decimals
+    address = mapping.address.strip() if mapping.address else None
+    if address:
+        address = Web3.to_checksum_address(address)
+    return address, mapping.decimals
 
 
 def parse_args(argv: list[str]) -> tuple[str, str, Decimal]:
@@ -114,6 +120,43 @@ def parse_args(argv: list[str]) -> tuple[str, str, Decimal]:
     return currency, destination, amount
 
 
+def send_native(w3: Web3, destination: str, amount: Decimal, decimals: int) -> tuple[str, int, int]:
+    """Send a native currency. Returns (tx_hash_hex, balance_before, balance_after)."""
+    sender = w3.eth.accounts[0]
+    value = int(amount * (10 ** decimals))
+
+    balance_before = w3.eth.get_balance(destination)
+    tx_hash = w3.eth.send_transaction({"to": destination, "value": value, "from": sender})
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30, poll_latency=0.5)
+    balance_after = w3.eth.get_balance(destination)
+
+    if receipt.status != 1:
+        raise RuntimeError(f"Transaction failed: {tx_hash.hex()}")
+    return tx_hash.hex(), balance_before, balance_after
+
+
+def send_erc20(w3: Web3, contract_address: str, destination: str, amount: Decimal, decimals: int) -> tuple[str, int, int]:
+    """Mint an ERC20 token. Returns (tx_hash_hex, balance_before, balance_after)."""
+    if w3.eth.get_code(contract_address) == b"":
+        raise RuntimeError(
+            f"No contract deployed at {contract_address} for token on anvil. "
+            "The mock contract may need to be redeployed."
+        )
+
+    contract = w3.eth.contract(address=contract_address, abi=ERC20_ABI)
+    minter = w3.eth.accounts[0]
+    value = int(amount * (10 ** decimals))
+
+    balance_before = contract.functions.balanceOf(destination).call()
+    tx_hash = contract.functions.mint(destination, value).transact({"from": minter})
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30, poll_latency=0.5)
+    balance_after = contract.functions.balanceOf(destination).call()
+
+    if receipt.status != 1:
+        raise RuntimeError(f"Transaction failed: {tx_hash.hex()}")
+    return tx_hash.hex(), balance_before, balance_after
+
+
 def main() -> int:
     try:
         currency, destination, amount = parse_args(sys.argv[1:])
@@ -135,31 +178,22 @@ def main() -> int:
         print(f"Could not load token config for {currency}: {e}", file=sys.stderr)
         return 1
 
-    print(f"{currency} mock contract: {contract_address}")
-    print(f"Sending {amount} {currency} to {destination}")
+    if contract_address is None:
+        print(f"Sending {amount} {currency} (native) to {destination}")
+    else:
+        print(f"{currency} mock contract: {contract_address}")
+        print(f"Sending {amount} {currency} to {destination}")
 
-    if w3.eth.get_code(contract_address) == b"":
-        print(
-            f"No contract deployed at {contract_address} for {currency} on anvil. "
-            "The mock contract may need to be redeployed.",
-            file=sys.stderr,
-        )
+    try:
+        if contract_address is None:
+            tx_hash, balance_before, balance_after = send_native(w3, destination, amount, decimals)
+        else:
+            tx_hash, balance_before, balance_after = send_erc20(w3, contract_address, destination, amount, decimals)
+    except Exception as e:
+        print(f"Failed to send {currency}: {e}", file=sys.stderr)
         return 1
 
-    contract = w3.eth.contract(address=contract_address, abi=ERC20_ABI)
-    minter = w3.eth.accounts[0]
-    value = int(amount * (10 ** decimals))
-
-    balance_before = contract.functions.balanceOf(destination).call()
-    tx_hash = contract.functions.mint(destination, value).transact({"from": minter})
-    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30, poll_latency=0.5)
-    balance_after = contract.functions.balanceOf(destination).call()
-
-    if receipt.status != 1:
-        print(f"Transaction failed: {tx_hash.hex()}", file=sys.stderr)
-        return 1
-
-    print(f"Transaction mined: {tx_hash.hex()}")
+    print(f"Transaction mined: {tx_hash}")
     print(f"Destination balance before: {balance_before / 10**decimals}")
     print(f"Destination balance after:  {balance_after / 10**decimals}")
     return 0
