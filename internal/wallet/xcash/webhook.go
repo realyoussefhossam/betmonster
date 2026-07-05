@@ -19,7 +19,7 @@ func (v *WebhookValidator) Validate(body []byte, headers map[string]string) (*De
 	timestamp := headers["XC-Timestamp"]
 	signature := headers["XC-Signature"]
 
-	expected := sign(nonce+timestamp+string(body), v.hmacKey)
+	expected := Sign(nonce+timestamp+string(body), v.hmacKey)
 	if !hmac.Equal([]byte(signature), []byte(expected)) {
 		return nil, fmt.Errorf("invalid webhook signature")
 	}

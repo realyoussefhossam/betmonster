@@ -8,7 +8,7 @@ import (
 )
 
 func TestCreateWallet(t *testing.T) {
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	wallet, err := store.CreateWallet(context.Background(), "user-1", "USDT")
 	assert.NoError(t, err)
 	assert.Equal(t, "user-1", wallet.UserID)
@@ -17,7 +17,7 @@ func TestCreateWallet(t *testing.T) {
 }
 
 func TestCreditWallet(t *testing.T) {
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	ctx := context.Background()
 
 	tx, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)

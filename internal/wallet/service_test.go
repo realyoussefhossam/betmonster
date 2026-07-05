@@ -9,7 +9,7 @@ import (
 
 func TestServiceCreditWallet(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	tx, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
@@ -29,7 +29,7 @@ func TestServiceCreditWallet(t *testing.T) {
 
 func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "50.00", "dx-1", nil)
@@ -45,7 +45,7 @@ func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 
 func TestServiceDebitWallet(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
@@ -63,7 +63,7 @@ func TestServiceDebitWallet(t *testing.T) {
 
 func TestServiceGetBalanceCreatesWallet(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	wallet, err := svc.GetBalance(ctx, "new-user", "USDT")
@@ -79,7 +79,7 @@ func TestServiceGetBalanceCreatesWallet(t *testing.T) {
 
 func TestServiceRequestWithdrawal(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
@@ -113,7 +113,7 @@ func TestServiceRequestWithdrawal(t *testing.T) {
 
 func TestServiceRequestWithdrawalInsufficientBalance(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
@@ -130,7 +130,7 @@ func TestServiceRequestWithdrawalInsufficientBalance(t *testing.T) {
 
 func TestServiceApproveWithdrawal(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
@@ -163,7 +163,7 @@ func TestServiceApproveWithdrawal(t *testing.T) {
 
 func TestServiceRejectWithdrawal(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
@@ -204,7 +204,7 @@ func TestServiceRejectWithdrawal(t *testing.T) {
 
 func TestServiceUnsupportedCurrency(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	svc := NewService(store, nil, nil, []string{"USDT:anvil", "BNB:bsc"})
 
 	_, err := svc.GetBalance(ctx, "user-1", "BTC")

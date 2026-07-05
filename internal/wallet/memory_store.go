@@ -19,7 +19,7 @@ type memoryStore struct {
 	withdrawals map[string]*WithdrawalRequest
 }
 
-func newInMemoryStore() *memoryStore {
+func NewInMemoryStore() *memoryStore {
 	return &memoryStore{
 		wallets:     map[string]*Wallet{},
 		txns:        map[string]*Transaction{},

@@ -46,7 +46,7 @@ func (c *Client) GetDepositAddress(ctx context.Context, req DepositAddressReques
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	nonce := uuid.NewString()
 	// Per xcash docs: GET requests have no body, so the signed payload is nonce + timestamp + "".
-	signature := sign(nonce+timestamp+"", c.hmacKey)
+	signature := Sign(nonce+timestamp+"", c.hmacKey)
 
 	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -75,7 +75,7 @@ func (c *Client) GetDepositAddress(ctx context.Context, req DepositAddressReques
 	return &result, nil
 }
 
-func sign(message, key string) string {
+func Sign(message, key string) string {
 	h := hmac.New(sha256.New, []byte(key))
 	h.Write([]byte(message))
 	return hex.EncodeToString(h.Sum(nil))

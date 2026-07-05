@@ -14,7 +14,7 @@ import (
 
 func TestGRPCServerGetBalance(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
@@ -47,7 +47,7 @@ func TestGRPCServerGetBalance(t *testing.T) {
 
 func TestGRPCServerListTransactionsIncludesCreatedAt(t *testing.T) {
 	ctx := context.Background()
-	store := newInMemoryStore()
+	store := NewInMemoryStore()
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 

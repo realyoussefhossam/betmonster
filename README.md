@@ -156,7 +156,7 @@ docker cp scripts/xcash_bootstrap.py xcash_django:/tmp/xcash_bootstrap.py
 docker exec xcash_django python /tmp/xcash_bootstrap.py
 ```
 
-The bootstrap is idempotent: it recreates the anvil chain record, deploys USDT/USDC mocks, funds the xcash system wallet, and ensures the `BetMonster Local` project exists.
+The bootstrap is idempotent: it recreates the anvil chain record, deploys USDT/USDC mocks, funds the xcash system wallet, ensures the `BetMonster Local` project exists, and resets the EVM scan cursor if the anvil chain block height has dropped (so deposits on the fresh chain are not skipped).
 
 ## Wallet Endpoints
 

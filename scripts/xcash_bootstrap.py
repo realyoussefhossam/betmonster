@@ -39,6 +39,7 @@ from core.default_data import ensure_chain_native_mapping  # noqa: E402
 from core.default_data import ensure_crypto_on_chain_mapping  # noqa: E402
 from core.models import SystemWallet  # noqa: E402
 from evm.local_vault_slot import ensure_local_vault_slot_contracts  # noqa: E402
+from evm.models import EvmScanCursor  # noqa: E402
 from projects.models import Project  # noqa: E402
 
 ANVIL_RPC = os.environ.get("XCASH_ANVIL_RPC", "http://xcash_anvil:8545")
@@ -73,6 +74,13 @@ def ensure_anvil_chain(w3: Web3) -> Chain:
             "active": True,
         },
     )
+    # If the anvil chain was restarted/reset, its block number is now much
+    # lower than the last scanned height. Reset the cursor so the scanner does
+    # not skip the new blocks. Also sync the chain's latest block number.
+    current_block = w3.eth.block_number
+    if current_block < chain.latest_block_number:
+        EvmScanCursor.objects.filter(chain=chain).update(last_scanned_block=0)
+    chain.latest_block_number = current_block
     chain.save()
     return chain
 

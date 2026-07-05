@@ -415,13 +415,15 @@ func (s *Server) handleXcashWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		Amount string `json:"amount"`
+		Data struct {
+			Amount string `json:"amount"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		s.writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := s.limits.ValidateDeposit(payload.Amount); err != nil {
+	if err := s.limits.ValidateDeposit(payload.Data.Amount); err != nil {
 		s.writeError(w, http.StatusBadRequest, err)
 		return
 	}

@@ -30,7 +30,7 @@ func TestWebhookValidator(t *testing.T) {
 	headers := map[string]string{
 		"XC-Nonce":     "n1",
 		"XC-Timestamp": "1234567890",
-		"XC-Signature": sign("n1"+"1234567890"+body, "key"),
+		"XC-Signature": Sign("n1"+"1234567890"+body, "key"),
 	}
 	webhook, err := validator.Validate([]byte(body), headers)
 	assert.NoError(t, err)
