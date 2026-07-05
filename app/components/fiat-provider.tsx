@@ -7,7 +7,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
-  useSyncExternalStore,
+  useRef,
   ReactNode,
 } from "react";
 import { goApiClient } from "@/lib/go-api-client";
@@ -46,16 +46,6 @@ function getStoredFiat(): string {
   return saved && SUPPORTED_FIAT.includes(saved) ? saved : "USD";
 }
 
-function subscribe(callback: () => void) {
-  function handleStorage(e: StorageEvent) {
-    if (e.key === STORAGE_KEY) {
-      callback();
-    }
-  }
-  window.addEventListener("storage", handleStorage);
-  return () => window.removeEventListener("storage", handleStorage);
-}
-
 interface RatesState {
   rates: Record<string, string> | null;
   loading: boolean;
@@ -80,25 +70,49 @@ function ratesReducer(state: RatesState, action: RatesAction): RatesState {
 }
 
 export function FiatProvider({ children }: { children: ReactNode }) {
-  const fiat = useSyncExternalStore(subscribe, getStoredFiat, () => "USD");
-  const [ratesState, dispatch] = useReducer(ratesReducer, {
+  // Default to USD for SSR; hydrate from localStorage on the client.
+  const [fiat, setFiatState] = useReducer(
+    (_state: string, action: string) => action,
+    "USD",
+  );
+  const [ratesState, dispatchRates] = useReducer(ratesReducer, {
     rates: null,
     loading: false,
   });
 
+  const initialized = useRef(false);
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    const saved = getStoredFiat();
+    if (saved !== fiat) {
+      setFiatState(saved);
+    }
+  }, [fiat]);
+
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key === STORAGE_KEY && e.newValue && SUPPORTED_FIAT.includes(e.newValue)) {
+        setFiatState(e.newValue);
+      }
+    }
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    dispatch({ type: "START" });
+    dispatchRates({ type: "START" });
     goApiClient
       .getRates(fiat)
       .then((res) => {
         if (!cancelled) {
-          dispatch({ type: "SUCCESS", rates: res.data?.rates ?? null });
+          dispatchRates({ type: "SUCCESS", rates: res.data?.rates ?? null });
         }
       })
       .catch(() => {
         if (!cancelled) {
-          dispatch({ type: "ERROR" });
+          dispatchRates({ type: "ERROR" });
         }
       });
     return () => {
@@ -107,11 +121,14 @@ export function FiatProvider({ children }: { children: ReactNode }) {
   }, [fiat]);
 
   const setFiat = useCallback((value: string) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, value);
-      window.dispatchEvent(
-        new StorageEvent("storage", { key: STORAGE_KEY, newValue: value }),
-      );
+    if (SUPPORTED_FIAT.includes(value)) {
+      setFiatState(value);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, value);
+        window.dispatchEvent(
+          new StorageEvent("storage", { key: STORAGE_KEY, newValue: value }),
+        );
+      }
     }
   }, []);
 
