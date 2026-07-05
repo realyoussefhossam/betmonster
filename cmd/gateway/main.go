@@ -46,7 +46,7 @@ func main() {
 		DailyWithdrawal: cfg.DailyWithdrawal,
 	}
 
-	server := gateway.NewServer(logger, walletClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains, limits)
+	server := gateway.NewServer(logger, walletClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains, cfg.SupportedPairs, limits)
 	logger.Info("gateway starting", slog.String("port", cfg.Port))
 	if err := http.ListenAndServe(":"+cfg.Port, server.Router()); err != nil {
 		logger.Error("gateway stopped", slog.String("error", err.Error()))

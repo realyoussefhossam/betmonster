@@ -56,9 +56,8 @@ func main() {
 	store := wallet.NewPGStore(db)
 	xc := xcash.NewClient(cfg.XCashBaseURL, cfg.XCashAppID, cfg.XCashHMACKey)
 	validator := xcash.NewWebhookValidator(cfg.XCashWebhookSecret)
-	currencies := splitTrim(cfg.SupportedCurrencies)
-	chains := splitTrim(cfg.SupportedChains)
-	svc := wallet.NewService(store, xc, validator, currencies, chains)
+	pairs := splitTrim(cfg.SupportedPairs)
+	svc := wallet.NewService(store, xc, validator, pairs)
 	grpcServer := grpc.NewServer()
 	proto.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc))
 

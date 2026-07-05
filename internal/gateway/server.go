@@ -25,10 +25,11 @@ type Server struct {
 	corsAllowAll        bool
 	supportedCurrencies []string
 	supportedChains     []string
+	supportedPairs      map[string]struct{}
 	limits              Limits
 }
 
-func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains string, limits Limits) *Server {
+func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains, supportedPairs string, limits Limits) *Server {
 	admins := map[string]struct{}{}
 	for _, id := range strings.Split(adminUserIDs, ",") {
 		id = strings.TrimSpace(id)
@@ -51,6 +52,13 @@ func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSC
 		}
 	}
 
+	pairs := parsePairs(supportedPairs)
+	currencies := splitTrim(supportedCurrencies)
+	chains := splitTrim(supportedChains)
+	if len(pairs) > 0 {
+		currencies, chains = deriveLists(pairs, currencies, chains)
+	}
+
 	return &Server{
 		logger:              logger,
 		wallet:              wallet,
@@ -59,8 +67,9 @@ func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSC
 		adminUserIDs:        admins,
 		corsAllowedOrigins:  origins,
 		corsAllowAll:        allowAll,
-		supportedCurrencies: splitTrim(supportedCurrencies),
-		supportedChains:     splitTrim(supportedChains),
+		supportedCurrencies: currencies,
+		supportedChains:     chains,
+		supportedPairs:      pairs,
 		limits:              limits,
 	}
 }
@@ -75,6 +84,48 @@ func splitTrim(s string) []string {
 		}
 	}
 	return out
+}
+
+func parsePairs(s string) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, p := range strings.Split(s, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		parts := strings.SplitN(p, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		currency := strings.TrimSpace(parts[0])
+		chain := strings.TrimSpace(parts[1])
+		if currency == "" || chain == "" {
+			continue
+		}
+		out[currency+":"+chain] = struct{}{}
+	}
+	return out
+}
+
+func deriveLists(pairs map[string]struct{}, currencies, chains []string) ([]string, []string) {
+	curSet := map[string]struct{}{}
+	chainSet := map[string]struct{}{}
+	for pair := range pairs {
+		parts := strings.SplitN(pair, ":", 2)
+		curSet[parts[0]] = struct{}{}
+		chainSet[parts[1]] = struct{}{}
+	}
+	if len(currencies) == 0 {
+		for c := range curSet {
+			currencies = append(currencies, c)
+		}
+	}
+	if len(chains) == 0 {
+		for c := range chainSet {
+			chains = append(chains, c)
+		}
+	}
+	return currencies, chains
 }
 
 func (s *Server) isSupportedCurrency(c string) bool {
@@ -95,11 +146,37 @@ func (s *Server) isSupportedChain(c string) bool {
 	return false
 }
 
+func (s *Server) isSupportedPair(currency, chain string) bool {
+	if len(s.supportedPairs) == 0 {
+		return s.isSupportedCurrency(currency) && s.isSupportedChain(chain)
+	}
+	_, ok := s.supportedPairs[currency+":"+chain]
+	return ok
+}
+
 func firstOrEmpty(parts []string) string {
 	if len(parts) == 0 {
 		return ""
 	}
 	return parts[0]
+}
+
+func firstPairCurrency(pairs map[string]struct{}) string {
+	for pair := range pairs {
+		parts := strings.SplitN(pair, ":", 2)
+		return parts[0]
+	}
+	return ""
+}
+
+func firstPairChain(pairs map[string]struct{}, currency string) string {
+	for pair := range pairs {
+		parts := strings.SplitN(pair, ":", 2)
+		if parts[0] == currency {
+			return parts[1]
+		}
+	}
+	return ""
 }
 
 func (s *Server) Router() http.Handler {
@@ -245,12 +322,8 @@ func (s *Server) handleDepositAddress(w http.ResponseWriter, r *http.Request) {
 	if chain == "" {
 		chain = firstOrEmpty(s.supportedChains)
 	}
-	if !s.isSupportedCurrency(currency) {
-		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency: %s", currency))
-		return
-	}
-	if !s.isSupportedChain(chain) {
-		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported chain: %s", chain))
+	if !s.isSupportedPair(currency, chain) {
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency-chain pair: %s:%s", currency, chain))
 		return
 	}
 	resp, err := s.wallet.GetDepositAddress(r.Context(), user.ID, currency, chain)
@@ -282,12 +355,8 @@ func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 	if body.Chain == "" {
 		body.Chain = firstOrEmpty(s.supportedChains)
 	}
-	if !s.isSupportedCurrency(body.Currency) {
-		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency: %s", body.Currency))
-		return
-	}
-	if !s.isSupportedChain(body.Chain) {
-		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported chain: %s", body.Chain))
+	if !s.isSupportedPair(body.Currency, body.Chain) {
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency-chain pair: %s:%s", body.Currency, body.Chain))
 		return
 	}
 	if err := s.limits.ValidateWithdrawal(body.Amount); err != nil {

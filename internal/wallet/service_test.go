@@ -10,7 +10,7 @@ import (
 func TestServiceCreditWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	tx, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -30,7 +30,7 @@ func TestServiceCreditWallet(t *testing.T) {
 func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "50.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -46,7 +46,7 @@ func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 func TestServiceDebitWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -64,7 +64,7 @@ func TestServiceDebitWallet(t *testing.T) {
 func TestServiceGetBalanceCreatesWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	wallet, err := svc.GetBalance(ctx, "new-user", "USDT")
 	assert.NoError(t, err)
@@ -80,7 +80,7 @@ func TestServiceGetBalanceCreatesWallet(t *testing.T) {
 func TestServiceRequestWithdrawal(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -114,7 +114,7 @@ func TestServiceRequestWithdrawal(t *testing.T) {
 func TestServiceRequestWithdrawalInsufficientBalance(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -131,7 +131,7 @@ func TestServiceRequestWithdrawalInsufficientBalance(t *testing.T) {
 func TestServiceApproveWithdrawal(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -164,7 +164,7 @@ func TestServiceApproveWithdrawal(t *testing.T) {
 func TestServiceRejectWithdrawal(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -205,17 +205,17 @@ func TestServiceRejectWithdrawal(t *testing.T) {
 func TestServiceUnsupportedCurrency(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil", "BNB:bsc"})
 
 	_, err := svc.GetBalance(ctx, "user-1", "BTC")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported currency")
 
-	_, err = svc.GetDepositAddress(ctx, "user-1", "USDT", "tron")
+	_, err = svc.GetDepositAddress(ctx, "user-1", "BNB", "anvil")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported chain")
+	assert.Contains(t, err.Error(), "unsupported currency-chain pair")
 
 	_, err = svc.RequestWithdrawal(ctx, "user-1", "BTC", "10", "0x123", "anvil")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported currency")
+	assert.Contains(t, err.Error(), "unsupported currency-chain pair")
 }

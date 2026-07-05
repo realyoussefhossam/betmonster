@@ -14,7 +14,7 @@ import (
 
 func TestHealthHandler(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", Limits{})
+	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
@@ -26,7 +26,7 @@ func TestHealthHandler(t *testing.T) {
 
 func TestSupportedOptions(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT,USDC", "anvil,base", Limits{})
+	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT,USDC", "anvil,base", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/supported", nil)
 	w := httptest.NewRecorder()
 
@@ -41,7 +41,7 @@ func TestSupportedOptions(t *testing.T) {
 
 func TestHandleBalanceUnsupportedCurrency(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", Limits{})
+	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/balance?currency=BTC", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-1"}))
 	w := httptest.NewRecorder()
@@ -50,4 +50,17 @@ func TestHandleBalanceUnsupportedCurrency(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "unsupported currency")
+}
+
+func TestHandleDepositAddressUnsupportedPair(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	req := httptest.NewRequest(http.MethodGet, "/api/wallet/deposit-address?currency=BNB&chain=anvil", nil)
+	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-1"}))
+	w := httptest.NewRecorder()
+
+	srv.handleDepositAddress(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "unsupported currency-chain pair")
 }

@@ -18,7 +18,7 @@ func TestGRPCServerGetBalance(t *testing.T) {
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 	server := NewGRPCServer(svc)
 
 	listener := bufconn.Listen(1024)
@@ -51,7 +51,7 @@ func TestGRPCServerListTransactionsIncludesCreatedAt(t *testing.T) {
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 	server := NewGRPCServer(svc)
 
 	listener := bufconn.Listen(1024)

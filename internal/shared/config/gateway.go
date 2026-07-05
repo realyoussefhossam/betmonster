@@ -13,6 +13,7 @@ type Gateway struct {
 	CORSAllowedOrigins  string
 	SupportedCurrencies string
 	SupportedChains     string
+	SupportedPairs      string
 	RateLimitRPS        int
 	RateLimitBurst      int
 	RateLimitBackend    string
@@ -34,6 +35,7 @@ func LoadGateway() Gateway {
 		CORSAllowedOrigins:  getEnv("CORS_ALLOWED_ORIGINS", ""),
 		SupportedCurrencies: getEnv("SUPPORTED_CURRENCIES", "USDT"),
 		SupportedChains:     getEnv("SUPPORTED_CHAINS", "anvil"),
+		SupportedPairs:      getEnv("SUPPORTED_PAIRS", ""),
 		RateLimitRPS:        getEnvInt("RATE_LIMIT_RPS", 100),
 		RateLimitBurst:      getEnvInt("RATE_LIMIT_BURST", 100),
 		RateLimitBackend:    getEnv("RATE_LIMIT_BACKEND", "memory"),

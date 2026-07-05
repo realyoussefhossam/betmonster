@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
 )
@@ -11,44 +12,43 @@ type Service struct {
 	store              Store
 	xcash              *xcash.Client
 	xcashValidator     *xcash.WebhookValidator
-	supportedCurrencies []string
-	supportedChains     []string
+	supportedPairs     map[string]struct{}
 }
 
-func NewService(store Store, xcashClient *xcash.Client, validator *xcash.WebhookValidator, supportedCurrencies, supportedChains []string) *Service {
+func NewService(store Store, xcashClient *xcash.Client, validator *xcash.WebhookValidator, supportedPairs []string) *Service {
+	pairs := make(map[string]struct{}, len(supportedPairs))
+	for _, p := range supportedPairs {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		parts := strings.SplitN(p, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		currency := strings.TrimSpace(parts[0])
+		chain := strings.TrimSpace(parts[1])
+		if currency == "" || chain == "" {
+			continue
+		}
+		pairs[currency+":"+chain] = struct{}{}
+	}
 	return &Service{
-		store:              store,
-		xcash:              xcashClient,
-		xcashValidator:     validator,
-		supportedCurrencies: supportedCurrencies,
-		supportedChains:     supportedChains,
+		store:          store,
+		xcash:          xcashClient,
+		xcashValidator: validator,
+		supportedPairs: pairs,
 	}
 }
 
-func (s *Service) isSupportedCurrency(c string) bool {
-	for _, c2 := range s.supportedCurrencies {
-		if c2 == c {
-			return true
-		}
-	}
-	return false
+func (s *Service) isSupportedPair(currency, chain string) bool {
+	_, ok := s.supportedPairs[currency+":"+chain]
+	return ok
 }
 
-func (s *Service) isSupportedChain(c string) bool {
-	for _, c2 := range s.supportedChains {
-		if c2 == c {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *Service) validateAsset(currency, chain string) error {
-	if !s.isSupportedCurrency(currency) {
-		return errors.New("unsupported currency")
-	}
-	if !s.isSupportedChain(chain) {
-		return errors.New("unsupported chain")
+func (s *Service) validatePair(currency, chain string) error {
+	if !s.isSupportedPair(currency, chain) {
+		return errors.New("unsupported currency-chain pair")
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func (s *Service) DebitWallet(ctx context.Context, userID, currency, amount, ref
 }
 
 func (s *Service) GetBalance(ctx context.Context, userID, currency string) (*Wallet, error) {
-	if !s.isSupportedCurrency(currency) {
+	if !s.currencyInPairs(currency) {
 		return nil, errors.New("unsupported currency")
 	}
 	wallet, err := s.store.GetWallet(ctx, userID, currency)
@@ -75,8 +75,18 @@ func (s *Service) GetBalance(ctx context.Context, userID, currency string) (*Wal
 	return nil, err
 }
 
+func (s *Service) currencyInPairs(currency string) bool {
+	for pair := range s.supportedPairs {
+		parts := strings.SplitN(pair, ":", 2)
+		if parts[0] == currency {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Service) GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error) {
-	if err := s.validateAsset(currency, chain); err != nil {
+	if err := s.validatePair(currency, chain); err != nil {
 		return nil, err
 	}
 	addr, err := s.store.GetDepositAddress(ctx, userID, currency, chain)
@@ -111,7 +121,7 @@ func (s *Service) ProcessDepositWebhook(ctx context.Context, body []byte, header
 	if !webhook.Data.Confirmed {
 		return "ok", nil
 	}
-	if err := s.validateAsset(webhook.Data.Crypto, webhook.Data.Chain); err != nil {
+	if err := s.validatePair(webhook.Data.Crypto, webhook.Data.Chain); err != nil {
 		return "", err
 	}
 	_, err = s.CreditWallet(ctx, webhook.Data.UID, webhook.Data.Crypto, webhook.Data.Amount, webhook.Data.SysNo, map[string]any{
@@ -126,7 +136,7 @@ func (s *Service) ProcessDepositWebhook(ctx context.Context, body []byte, header
 }
 
 func (s *Service) RequestWithdrawal(ctx context.Context, userID, currency, amount, destinationAddress, chain string) (*WithdrawalRequest, error) {
-	if err := s.validateAsset(currency, chain); err != nil {
+	if err := s.validatePair(currency, chain); err != nil {
 		return nil, err
 	}
 	return s.store.RequestWithdrawal(ctx, userID, currency, amount, destinationAddress, chain)
