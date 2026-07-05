@@ -30,13 +30,14 @@ export default function WithdrawPage() {
       if (res.error) {
         setOptionsError(res.error);
       } else if (res.data) {
-        setOptions(res.data);
-        const firstCurrency = res.data.currencies[0] ?? "";
+        const data = res.data;
+        setOptions(data);
+        const firstCurrency = data.currencies[0] ?? "";
         setCurrency(firstCurrency);
         setChain(
-          res.data.chains.find((chain) =>
-            res.data.pairs.includes(`${firstCurrency}:${chain}`),
-          ) ?? res.data.chains[0] ?? "",
+          data.chains.find((chain) =>
+            data.pairs.includes(`${firstCurrency}:${chain}`),
+          ) ?? data.chains[0] ?? "",
         );
       }
     }
