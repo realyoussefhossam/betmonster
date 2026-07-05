@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"google.golang.org/grpc"
 
@@ -20,6 +21,18 @@ import (
 	"github.com/realyoussefhossam/betmonster/internal/wallet"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
 )
+
+func splitTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
 
 func main() {
 	cfg := config.LoadWallet()
@@ -43,7 +56,9 @@ func main() {
 	store := wallet.NewPGStore(db)
 	xc := xcash.NewClient(cfg.XCashBaseURL, cfg.XCashAppID, cfg.XCashHMACKey)
 	validator := xcash.NewWebhookValidator(cfg.XCashWebhookSecret)
-	svc := wallet.NewService(store, xc, validator)
+	currencies := splitTrim(cfg.SupportedCurrencies)
+	chains := splitTrim(cfg.SupportedChains)
+	svc := wallet.NewService(store, xc, validator, currencies, chains)
 	grpcServer := grpc.NewServer()
 	proto.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc))
 

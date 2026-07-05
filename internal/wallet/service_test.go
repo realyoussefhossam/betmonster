@@ -10,7 +10,7 @@ import (
 func TestServiceCreditWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	tx, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -30,7 +30,7 @@ func TestServiceCreditWallet(t *testing.T) {
 func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "50.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -46,7 +46,7 @@ func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 func TestServiceDebitWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
@@ -64,7 +64,7 @@ func TestServiceDebitWallet(t *testing.T) {
 func TestServiceGetBalanceCreatesWallet(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	wallet, err := svc.GetBalance(ctx, "new-user", "USDT")
 	assert.NoError(t, err)
@@ -80,16 +80,16 @@ func TestServiceGetBalanceCreatesWallet(t *testing.T) {
 func TestServiceRequestWithdrawal(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "polygon")
+	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "anvil")
 	assert.NoError(t, err)
 	assert.Equal(t, "pending", req.Status)
 	assert.Equal(t, "40.00", req.Amount)
-	assert.Equal(t, "polygon", req.Chain)
+	assert.Equal(t, "anvil", req.Chain)
 
 	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
 	assert.NoError(t, err)
@@ -114,12 +114,12 @@ func TestServiceRequestWithdrawal(t *testing.T) {
 func TestServiceRequestWithdrawalInsufficientBalance(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	_, err = svc.RequestWithdrawal(ctx, "user-1", "USDT", "150.00", "0xABC", "polygon")
+	_, err = svc.RequestWithdrawal(ctx, "user-1", "USDT", "150.00", "0xABC", "anvil")
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrInsufficientBalance)
 
@@ -131,12 +131,12 @@ func TestServiceRequestWithdrawalInsufficientBalance(t *testing.T) {
 func TestServiceApproveWithdrawal(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "polygon")
+	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "anvil")
 	assert.NoError(t, err)
 
 	approved, err := svc.ReviewWithdrawal(ctx, req.ID, "approve", "0xTXHASH", "admin-1")
@@ -164,12 +164,12 @@ func TestServiceApproveWithdrawal(t *testing.T) {
 func TestServiceRejectWithdrawal(t *testing.T) {
 	ctx := context.Background()
 	store := newInMemoryStore()
-	svc := NewService(store, nil, nil)
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
 
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "polygon")
+	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "anvil")
 	assert.NoError(t, err)
 
 	rejected, err := svc.ReviewWithdrawal(ctx, req.ID, "reject", "", "admin-1")
@@ -200,4 +200,22 @@ func TestServiceRejectWithdrawal(t *testing.T) {
 	assert.Equal(t, "40.00", reversalTx.Amount)
 	assert.Equal(t, "completed", reversalTx.Status)
 	assert.Equal(t, "100", reversalTx.BalanceAfter)
+}
+
+func TestServiceUnsupportedCurrency(t *testing.T) {
+	ctx := context.Background()
+	store := newInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT"}, []string{"anvil"})
+
+	_, err := svc.GetBalance(ctx, "user-1", "BTC")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported currency")
+
+	_, err = svc.GetDepositAddress(ctx, "user-1", "USDT", "tron")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported chain")
+
+	_, err = svc.RequestWithdrawal(ctx, "user-1", "BTC", "10", "0x123", "anvil")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported currency")
 }

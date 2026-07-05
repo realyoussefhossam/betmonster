@@ -8,13 +8,49 @@ import (
 )
 
 type Service struct {
-	store   Store
-	xcash   *xcash.Client
-	xcashValidator *xcash.WebhookValidator
+	store              Store
+	xcash              *xcash.Client
+	xcashValidator     *xcash.WebhookValidator
+	supportedCurrencies []string
+	supportedChains     []string
 }
 
-func NewService(store Store, xcashClient *xcash.Client, validator *xcash.WebhookValidator) *Service {
-	return &Service{store: store, xcash: xcashClient, xcashValidator: validator}
+func NewService(store Store, xcashClient *xcash.Client, validator *xcash.WebhookValidator, supportedCurrencies, supportedChains []string) *Service {
+	return &Service{
+		store:              store,
+		xcash:              xcashClient,
+		xcashValidator:     validator,
+		supportedCurrencies: supportedCurrencies,
+		supportedChains:     supportedChains,
+	}
+}
+
+func (s *Service) isSupportedCurrency(c string) bool {
+	for _, c2 := range s.supportedCurrencies {
+		if c2 == c {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) isSupportedChain(c string) bool {
+	for _, c2 := range s.supportedChains {
+		if c2 == c {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) validateAsset(currency, chain string) error {
+	if !s.isSupportedCurrency(currency) {
+		return errors.New("unsupported currency")
+	}
+	if !s.isSupportedChain(chain) {
+		return errors.New("unsupported chain")
+	}
+	return nil
 }
 
 func (s *Service) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error) {
@@ -26,6 +62,9 @@ func (s *Service) DebitWallet(ctx context.Context, userID, currency, amount, ref
 }
 
 func (s *Service) GetBalance(ctx context.Context, userID, currency string) (*Wallet, error) {
+	if !s.isSupportedCurrency(currency) {
+		return nil, errors.New("unsupported currency")
+	}
 	wallet, err := s.store.GetWallet(ctx, userID, currency)
 	if err == nil {
 		return wallet, nil
@@ -37,6 +76,9 @@ func (s *Service) GetBalance(ctx context.Context, userID, currency string) (*Wal
 }
 
 func (s *Service) GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error) {
+	if err := s.validateAsset(currency, chain); err != nil {
+		return nil, err
+	}
 	addr, err := s.store.GetDepositAddress(ctx, userID, currency, chain)
 	if err == nil && addr != nil {
 		return addr, nil
@@ -69,6 +111,9 @@ func (s *Service) ProcessDepositWebhook(ctx context.Context, body []byte, header
 	if !webhook.Data.Confirmed {
 		return "ok", nil
 	}
+	if err := s.validateAsset(webhook.Data.Crypto, webhook.Data.Chain); err != nil {
+		return "", err
+	}
 	_, err = s.CreditWallet(ctx, webhook.Data.UID, webhook.Data.Crypto, webhook.Data.Amount, webhook.Data.SysNo, map[string]any{
 		"chain": webhook.Data.Chain,
 		"hash":  webhook.Data.Hash,
@@ -81,6 +126,9 @@ func (s *Service) ProcessDepositWebhook(ctx context.Context, body []byte, header
 }
 
 func (s *Service) RequestWithdrawal(ctx context.Context, userID, currency, amount, destinationAddress, chain string) (*WithdrawalRequest, error) {
+	if err := s.validateAsset(currency, chain); err != nil {
+		return nil, err
+	}
 	return s.store.RequestWithdrawal(ctx, userID, currency, amount, destinationAddress, chain)
 }
 

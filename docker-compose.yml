@@ -51,6 +51,8 @@ services:
       XCASH_APPID: ${XCASH_APPID:-}
       XCASH_HMAC_KEY: ${XCASH_HMAC_KEY:-}
       XCASH_WEBHOOK_SECRET: ${XCASH_WEBHOOK_SECRET:-}
+      SUPPORTED_CURRENCIES: ${SUPPORTED_CURRENCIES:-USDT}
+      SUPPORTED_CHAINS: ${SUPPORTED_CHAINS:-anvil}
     depends_on:
       postgres:
         condition: service_healthy
