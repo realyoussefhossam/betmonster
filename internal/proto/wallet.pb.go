@@ -25,6 +25,7 @@ type GetBalanceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Currency      string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
+	FiatCurrency  string                 `protobuf:"bytes,3,opt,name=fiat_currency,json=fiatCurrency,proto3" json:"fiat_currency,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -69,6 +70,13 @@ func (x *GetBalanceRequest) GetUserId() string {
 func (x *GetBalanceRequest) GetCurrency() string {
 	if x != nil {
 		return x.Currency
+	}
+	return ""
+}
+
+func (x *GetBalanceRequest) GetFiatCurrency() string {
+	if x != nil {
+		return x.FiatCurrency
 	}
 	return ""
 }
@@ -278,6 +286,7 @@ type ListTransactionsRequest struct {
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	FiatCurrency  string                 `protobuf:"bytes,4,opt,name=fiat_currency,json=fiatCurrency,proto3" json:"fiat_currency,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -333,6 +342,13 @@ func (x *ListTransactionsRequest) GetPageSize() int32 {
 	return 0
 }
 
+func (x *ListTransactionsRequest) GetFiatCurrency() string {
+	if x != nil {
+		return x.FiatCurrency
+	}
+	return ""
+}
+
 type ListTransactionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Transactions  []*Transaction         `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
@@ -379,6 +395,7 @@ func (x *ListTransactionsResponse) GetTransactions() []*Transaction {
 
 type GetRatesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	FiatCurrency  string                 `protobuf:"bytes,1,opt,name=fiat_currency,json=fiatCurrency,proto3" json:"fiat_currency,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -411,6 +428,13 @@ func (x *GetRatesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetRatesRequest.ProtoReflect.Descriptor instead.
 func (*GetRatesRequest) Descriptor() ([]byte, []int) {
 	return file_internal_proto_wallet_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetRatesRequest) GetFiatCurrency() string {
+	if x != nil {
+		return x.FiatCurrency
+	}
+	return ""
 }
 
 type GetRatesResponse struct {
@@ -1129,10 +1153,11 @@ var File_internal_proto_wallet_proto protoreflect.FileDescriptor
 
 const file_internal_proto_wallet_proto_rawDesc = "" +
 	"\n" +
-	"\x1binternal/proto/wallet.proto\x12\x06wallet\"H\n" +
+	"\x1binternal/proto/wallet.proto\x12\x06wallet\"m\n" +
 	"\x11GetBalanceRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
-	"\bcurrency\x18\x02 \x01(\tR\bcurrency\"\x8e\x01\n" +
+	"\bcurrency\x18\x02 \x01(\tR\bcurrency\x12#\n" +
+	"\rfiat_currency\x18\x03 \x01(\tR\ffiatCurrency\"\x8e\x01\n" +
 	"\x12GetBalanceResponse\x12\x1a\n" +
 	"\bcurrency\x18\x01 \x01(\tR\bcurrency\x12\x18\n" +
 	"\abalance\x18\x02 \x01(\tR\abalance\x12#\n" +
@@ -1154,14 +1179,16 @@ const file_internal_proto_wallet_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"fiat_value\x18\f \x01(\tR\tfiatValue\"c\n" +
+	"fiat_value\x18\f \x01(\tR\tfiatValue\"\x88\x01\n" +
 	"\x17ListTransactionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"S\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12#\n" +
+	"\rfiat_currency\x18\x04 \x01(\tR\ffiatCurrency\"S\n" +
 	"\x18ListTransactionsResponse\x127\n" +
-	"\ftransactions\x18\x01 \x03(\v2\x13.wallet.TransactionR\ftransactions\"\x11\n" +
-	"\x0fGetRatesRequest\"\xac\x01\n" +
+	"\ftransactions\x18\x01 \x03(\v2\x13.wallet.TransactionR\ftransactions\"6\n" +
+	"\x0fGetRatesRequest\x12#\n" +
+	"\rfiat_currency\x18\x01 \x01(\tR\ffiatCurrency\"\xac\x01\n" +
 	"\x10GetRatesResponse\x12#\n" +
 	"\rfiat_currency\x18\x01 \x01(\tR\ffiatCurrency\x129\n" +
 	"\x05rates\x18\x02 \x03(\v2#.wallet.GetRatesResponse.RatesEntryR\x05rates\x1a8\n" +

@@ -13,7 +13,7 @@ service WalletService {
   rpc ReviewWithdrawal(ReviewWithdrawalRequest) returns (ReviewWithdrawalResponse);
 }
 
-message GetBalanceRequest { string user_id = 1; string currency = 2; }
+message GetBalanceRequest { string user_id = 1; string currency = 2; string fiat_currency = 3; }
 message GetBalanceResponse { string currency = 1; string balance = 2; string fiat_currency = 3; string fiat_value = 4; }
 
 message Transaction {
@@ -31,10 +31,10 @@ message Transaction {
   string fiat_value = 12;
 }
 
-message ListTransactionsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
+message ListTransactionsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; string fiat_currency = 4; }
 message ListTransactionsResponse { repeated Transaction transactions = 1; }
 
-message GetRatesRequest {}
+message GetRatesRequest { string fiat_currency = 1; }
 message GetRatesResponse {
   string fiat_currency = 1;
   map<string, string> rates = 2;
