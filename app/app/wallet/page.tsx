@@ -31,30 +31,33 @@ export default function WalletPage() {
 
   useEffect(() => {
     async function load() {
-      const [supportedRes, txRes] = await Promise.all([
-        goApiClient.getSupportedOptions(),
-        goApiClient.getTransactions(fiat),
-      ]);
+      setLoading(true);
+      setError(null);
 
+      const supportedRes = await goApiClient.getSupportedOptions();
       if (supportedRes.error) {
         setError(supportedRes.error);
-      } else if (supportedRes.data?.currencies) {
-        const balanceResults = await Promise.all(
-          supportedRes.data.currencies.map((currency) =>
-            goApiClient.getBalance(currency, fiat),
-          ),
-        );
-        const loadedBalances = balanceResults
-          .filter((res) => res.data)
-          .map((res) => res.data!);
-        setBalances(loadedBalances);
+        setBalances([]);
+        setTransactions([]);
+        setLoading(false);
+        return;
       }
 
-      if (txRes.data?.transactions) {
-        setTransactions(txRes.data.transactions);
-      }
+      const currencies = supportedRes.data?.currencies ?? [];
+      const [txRes, ...balanceResults] = await Promise.all([
+        goApiClient.getTransactions(fiat),
+        ...currencies.map((currency) => goApiClient.getBalance(currency, fiat)),
+      ]);
+
+      const loadedBalances = balanceResults
+        .filter((res) => res.data)
+        .map((res) => res.data!);
+
+      setBalances(loadedBalances);
+      setTransactions(txRes.data?.transactions ?? []);
       setLoading(false);
     }
+
     load();
   }, [fiat, showZero]);
 
@@ -78,13 +81,18 @@ export default function WalletPage() {
             className="text-sm text-primary underline-offset-4 hover:underline"
             type="button"
           >
-            {showZero ? "Hide zero balances" : `Show ${zeroCount} zero balance${zeroCount === 1 ? "" : "s"}`}
+            {showZero
+              ? "Hide zero balances"
+              : `Show ${zeroCount} zero balance${zeroCount === 1 ? "" : "s"}`}
           </button>
         )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {loading ? (
-          <WalletCard currency="..." balance="0" loading />
+          <>
+            <WalletCard currency="..." balance="0" loading />
+            <WalletCard currency="..." balance="0" loading />
+          </>
         ) : visibleBalances.length === 0 ? (
           <p className="text-muted-foreground">
             {showZero ? "No balances found." : "No non-zero balances."}
@@ -112,7 +120,9 @@ export default function WalletPage() {
       </div>
       <div>
         <h2 className="text-xl font-semibold mb-4">Transactions</h2>
-        {transactions.length === 0 ? (
+        {loading ? (
+          <p className="text-muted-foreground">Loading transactions...</p>
+        ) : transactions.length === 0 ? (
           <p className="text-muted-foreground">No transactions yet.</p>
         ) : (
           <ul className="space-y-2">
@@ -129,7 +139,9 @@ export default function WalletPage() {
                 </div>
                 <span className="text-right">
                   {tx.amount} {tx.currency}
-                  <span className="text-xs text-muted-foreground ml-1">{tx.status}</span>
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {tx.status}
+                  </span>
                   {tx.fiatValue && (
                     <div className="text-xs text-muted-foreground">
                       ≈ {tx.fiatValue} {fiat}

@@ -4,9 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useMemo,
+  useReducer,
   useSyncExternalStore,
   ReactNode,
 } from "react";
+import { goApiClient } from "@/lib/go-api-client";
 
 const SUPPORTED_FIAT = [
   "USD", "EUR", "JPY", "INR", "CAD", "CNY", "IDR", "KRW", "PHP", "RUB",
@@ -23,11 +27,15 @@ const STORAGE_KEY = "betmonster-fiat";
 interface FiatContextValue {
   fiat: string;
   setFiat: (value: string) => void;
+  rates: Record<string, string> | null;
+  ratesLoading: boolean;
 }
 
 const FiatContext = createContext<FiatContextValue>({
   fiat: "USD",
   setFiat: () => {},
+  rates: null,
+  ratesLoading: false,
 });
 
 function getStoredFiat(): string {
@@ -48,12 +56,55 @@ function subscribe(callback: () => void) {
   return () => window.removeEventListener("storage", handleStorage);
 }
 
+interface RatesState {
+  rates: Record<string, string> | null;
+  loading: boolean;
+}
+
+type RatesAction =
+  | { type: "START" }
+  | { type: "SUCCESS"; rates: Record<string, string> | null }
+  | { type: "ERROR" };
+
+function ratesReducer(state: RatesState, action: RatesAction): RatesState {
+  switch (action.type) {
+    case "START":
+      return { ...state, loading: true };
+    case "SUCCESS":
+      return { rates: action.rates, loading: false };
+    case "ERROR":
+      return { ...state, loading: false };
+    default:
+      return state;
+  }
+}
+
 export function FiatProvider({ children }: { children: ReactNode }) {
-  const fiat = useSyncExternalStore(
-    subscribe,
-    getStoredFiat,
-    () => "USD",
-  );
+  const fiat = useSyncExternalStore(subscribe, getStoredFiat, () => "USD");
+  const [ratesState, dispatch] = useReducer(ratesReducer, {
+    rates: null,
+    loading: false,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    dispatch({ type: "START" });
+    goApiClient
+      .getRates(fiat)
+      .then((res) => {
+        if (!cancelled) {
+          dispatch({ type: "SUCCESS", rates: res.data?.rates ?? null });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          dispatch({ type: "ERROR" });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fiat]);
 
   const setFiat = useCallback((value: string) => {
     if (typeof window !== "undefined") {
@@ -64,10 +115,18 @@ export function FiatProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const value = useMemo(
+    () => ({
+      fiat,
+      setFiat,
+      rates: ratesState.rates,
+      ratesLoading: ratesState.loading,
+    }),
+    [fiat, setFiat, ratesState],
+  );
+
   return (
-    <FiatContext.Provider value={{ fiat, setFiat }}>
-      {children}
-    </FiatContext.Provider>
+    <FiatContext.Provider value={value}>{children}</FiatContext.Provider>
   );
 }
 
