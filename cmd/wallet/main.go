@@ -69,7 +69,13 @@ func main() {
 		}
 	}
 	rateCache := rates.NewCache(cacheTTL)
-	aggregator := rates.NewAggregator(rateCache, rates.NewForexChain(),
+	aggregator := rates.NewAggregator(rateCache,
+		rates.NewForexChain(
+			rates.NewOpenExchange(),
+			rates.NewCoinbaseForex(),
+			rates.NewFawazAhmed0(),
+			rates.NewMoneyConvert(),
+		),
 		rates.NewBinance(),
 		rates.NewCoinbase(),
 		rates.NewKraken(),
