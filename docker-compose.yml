@@ -82,6 +82,12 @@ services:
       RATE_LIMIT_RPS: ${RATE_LIMIT_RPS:-100}
       RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-100}
       RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-memory}
+      MIN_DEPOSIT: ${MIN_DEPOSIT:-}
+      MAX_DEPOSIT: ${MAX_DEPOSIT:-}
+      DAILY_DEPOSIT: ${DAILY_DEPOSIT:-}
+      MIN_WITHDRAWAL: ${MIN_WITHDRAWAL:-}
+      MAX_WITHDRAWAL: ${MAX_WITHDRAWAL:-}
+      DAILY_WITHDRAWAL: ${DAILY_WITHDRAWAL:-}
     depends_on:
       app:
         condition: service_started
