@@ -10,23 +10,39 @@ import {
   Transaction,
 } from "@/lib/go-api-client";
 
+function formatDate(value: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
 export default function WalletPage() {
-  const [balance, setBalance] = useState<BalanceResponse | null>(null);
+  const [balances, setBalances] = useState<BalanceResponse[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
-      const [balanceRes, txRes] = await Promise.all([
-        goApiClient.getBalance("USDT"),
+      const [supportedRes, txRes] = await Promise.all([
+        goApiClient.getSupportedOptions(),
         goApiClient.getTransactions(),
       ]);
-      if (balanceRes.error) {
-        setError(balanceRes.error);
-      } else if (balanceRes.data) {
-        setBalance(balanceRes.data);
+
+      if (supportedRes.error) {
+        setError(supportedRes.error);
+      } else if (supportedRes.data?.currencies) {
+        const balanceResults = await Promise.all(
+          supportedRes.data.currencies.map((currency) =>
+            goApiClient.getBalance(currency),
+          ),
+        );
+        const loadedBalances = balanceResults
+          .filter((res) => res.data)
+          .map((res) => res.data!);
+        setBalances(loadedBalances);
       }
+
       if (txRes.data?.transactions) {
         setTransactions(txRes.data.transactions);
       }
@@ -39,11 +55,20 @@ export default function WalletPage() {
     <div className="container mx-auto max-w-2xl py-8 space-y-6">
       <h1 className="text-3xl font-bold">Wallet</h1>
       {error && <p className="text-red-500">{error}</p>}
-      <WalletCard
-        currency={balance?.currency ?? "USDT"}
-        balance={balance?.balance ?? "0"}
-        loading={loading}
-      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {loading ? (
+          <WalletCard currency="..." balance="0" loading />
+        ) : (
+          balances.map((b) => (
+            <WalletCard
+              key={b.currency}
+              currency={b.currency}
+              balance={b.balance}
+              loading={false}
+            />
+          ))
+        )}
+      </div>
       <div className="flex gap-4">
         <Link href="/wallet/deposit">
           <Button>Deposit</Button>
@@ -61,10 +86,15 @@ export default function WalletPage() {
             {transactions.map((tx) => (
               <li
                 key={tx.id}
-                className="flex justify-between rounded-lg border p-4"
+                className="flex justify-between items-center rounded-lg border p-4"
               >
-                <span className="capitalize">{tx.type}</span>
-                <span>
+                <div className="space-y-1">
+                  <span className="block capitalize">{tx.type}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {formatDate(tx.createdAt)}
+                  </span>
+                </div>
+                <span className="text-right">
                   {tx.amount} {tx.status}
                 </span>
               </li>
