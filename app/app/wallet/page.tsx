@@ -140,8 +140,8 @@ export default function WalletPage() {
                   </span>
                 </div>
                 <span className="text-right">
-                  {tx.amount} {tx.currency}
-                  <span className="text-xs text-muted-foreground ml-1">
+                  {tx.amount} {tx.currency}{" "}
+                  <span className="text-xs text-muted-foreground">
                     {tx.status}
                   </span>
                   {tx.fiatValue && (
