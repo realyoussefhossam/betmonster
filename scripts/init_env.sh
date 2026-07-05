@@ -38,6 +38,20 @@ SUPPORTED_PAIRS=USDT:anvil,USDT:ethereum,USDT:bsc,USDT:polygon,USDT:tron,USDC:an
 # Example: MANUAL_RATES={"BETM":"0.50","SHIB":"0.000025"}
 MANUAL_RATES=
 
+# Default fiat currency for display (must be in FIAT_CURRENCIES).
+DEFAULT_FIAT_CURRENCY=USD
+
+# Comma-separated list of supported fiat display currencies.
+FIAT_CURRENCIES=USD,EUR,JPY,INR,CAD,CNY,IDR,KRW,PHP,RUB,MXN,PLN,TRY,VND,ARS,PEN,CLP,NGN,AED,BHD,CRC,KWD,MAD,MYR,QAR,SAR,SGD,TND,TWD,GHS,KES,BOB,XOF,PKR,NZD,ISK,BAM,TZS,EGP,LKR,UGX,KZT,BDT,UAH,GEL,MNT,GTQ,KGS,ZAR,TMT,ZMW,TJS,MRU,TTD,GMD,MGA,JMD,NIO,HNL,MZN,XAF,RWF,GNF,BWP,KMF,LSL,ERN,BIF,MWK,PGK
+
+# Optional: override USD-to-fiat rates for test environments.
+# Example: MANUAL_USD_RATES={"EUR":"0.92","JPY":"157.50"}
+MANUAL_USD_RATES=
+
+# Optional: free forex API for USD-to-fiat rates.
+# Default uses ExchangeRate-API open access endpoint (no API key required).
+FOREX_API_URL=https://open.er-api.com/v6/latest/USD
+
 # Optional: rate cache TTL in seconds (default: 30).
 RATES_CACHE_TTL_SECONDS=30
 
