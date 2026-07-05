@@ -18,6 +18,7 @@ type Server struct {
 	logger              *slog.Logger
 	wallet              *WalletClient
 	jwksClient          *auth.JWKSClient
+	limiter             *RateLimiter
 	adminUserIDs        map[string]struct{}
 	corsAllowedOrigins  map[string]struct{}
 	corsAllowAll        bool
@@ -25,7 +26,7 @@ type Server struct {
 	supportedChains     []string
 }
 
-func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSClient, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains string) *Server {
+func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains string) *Server {
 	admins := map[string]struct{}{}
 	for _, id := range strings.Split(adminUserIDs, ",") {
 		id = strings.TrimSpace(id)
@@ -52,6 +53,7 @@ func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSC
 		logger:              logger,
 		wallet:              wallet,
 		jwksClient:          jwksClient,
+		limiter:             limiter,
 		adminUserIDs:        admins,
 		corsAllowedOrigins:  origins,
 		corsAllowAll:        allowAll,
@@ -84,7 +86,7 @@ func (s *Server) Router() http.Handler {
 	mux.Handle("/api/admin/withdrawals", server.WithRoutePattern("/api/admin/withdrawals", s.auth(s.admin(http.HandlerFunc(s.handleListPendingWithdrawals)))))
 	mux.Handle("/api/admin/withdrawals/review", server.WithRoutePattern("/api/admin/withdrawals/review", s.auth(s.admin(http.HandlerFunc(s.handleReviewWithdrawal)))))
 	mux.Handle("/webhooks/xcash/deposit", server.WithRoutePattern("/webhooks/xcash/deposit", http.HandlerFunc(s.handleXcashWebhook)))
-	return server.RequestID(server.Logging(s.logger, server.Metrics(s.cors(mux))))
+	return server.RequestID(server.Logging(s.logger, server.Metrics(s.limiter.Middleware(s.cors(mux)))))
 }
 
 func (s *Server) cors(next http.Handler) http.Handler {
@@ -139,6 +141,8 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), "user", user)
+		ctx = context.WithValue(ctx, "userID", user.ID)
+		ctx = context.WithValue(ctx, UserContextKey, user)
 		next(w, r.WithContext(ctx))
 	})
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 )
 
 type Gateway struct {
@@ -12,6 +13,10 @@ type Gateway struct {
 	CORSAllowedOrigins  string
 	SupportedCurrencies string
 	SupportedChains     string
+	RateLimitRPS        int
+	RateLimitBurst      int
+	RateLimitBackend    string
+	RedisAddr           string
 }
 
 func LoadGateway() Gateway {
@@ -23,6 +28,10 @@ func LoadGateway() Gateway {
 		CORSAllowedOrigins:  getEnv("CORS_ALLOWED_ORIGINS", ""),
 		SupportedCurrencies: getEnv("SUPPORTED_CURRENCIES", "USDT"),
 		SupportedChains:     getEnv("SUPPORTED_CHAINS", "anvil"),
+		RateLimitRPS:        getEnvInt("RATE_LIMIT_RPS", 100),
+		RateLimitBurst:      getEnvInt("RATE_LIMIT_BURST", 100),
+		RateLimitBackend:    getEnv("RATE_LIMIT_BACKEND", "memory"),
+		RedisAddr:           getEnv("REDIS_ADDR", "redis:6379"),
 	}
 }
 
@@ -31,4 +40,16 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
