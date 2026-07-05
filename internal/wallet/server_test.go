@@ -55,7 +55,7 @@ func TestGRPCServerGetBalanceWithFiatValue(t *testing.T) {
 
 	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
 	cache := rates.NewCache(30 * time.Second)
-	agg := rates.NewAggregator(cache)
+	agg := rates.NewAggregator(cache, rates.NewForexChain())
 	server := NewGRPCServer(svc, agg)
 
 	listener := bufconn.Listen(1024)

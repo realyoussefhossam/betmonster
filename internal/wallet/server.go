@@ -23,12 +23,12 @@ func (s *GRPCServer) fiatValue(ctx context.Context, currency, amount string) (st
 	if err != nil {
 		return "", err
 	}
-	return MulDecimalStrings(amount, rate)
+	return rates.MulDecimalStrings(amount, rate)
 }
 
 func (s *GRPCServer) GetRates(ctx context.Context, req *pb.GetRatesRequest) (*pb.GetRatesResponse, error) {
 	currencies := s.service.supportedCurrencies()
-	rates := s.rates.SupportedRates(ctx, currencies)
+	rates := s.rates.SupportedRates(ctx, "USD", currencies)
 	return &pb.GetRatesResponse{
 		FiatCurrency: "USD",
 		Rates:        rates,

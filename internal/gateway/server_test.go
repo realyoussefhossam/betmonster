@@ -123,7 +123,7 @@ func TestHandleRatesPublicEndpoint(t *testing.T) {
 	store := wallet.NewInMemoryStore()
 	validator := xcash.NewWebhookValidator("hmac-key")
 	svc := wallet.NewService(store, nil, validator, []string{"USDT:anvil"})
-	agg := rates.NewAggregator(rates.NewCache(time.Hour))
+	agg := rates.NewAggregator(rates.NewCache(time.Hour), rates.NewForexChain())
 	grpcServer := grpc.NewServer()
 	pb.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, agg))
 

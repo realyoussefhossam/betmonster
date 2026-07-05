@@ -1,4 +1,4 @@
-package wallet
+package rates
 
 import "testing"
 
