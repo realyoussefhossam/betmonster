@@ -131,7 +131,7 @@ export default function WalletPage() {
                   {tx.amount} {tx.status}
                   {tx.fiat_value && (
                     <div className="text-xs text-muted-foreground">
-                      ≈ {tx.fiat_value} {tx.fiat_currency || fiat}
+                      ≈ {tx.fiat_value} {fiat}
                     </div>
                   )}
                 </span>
