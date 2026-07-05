@@ -124,6 +124,29 @@ make migrate
 make proto
 ```
 
+## Local Testing Scripts
+
+`scripts/send_anvil.py` is a helper that runs inside the xcash Django container to mint or transfer test funds on the local anvil chain. It reads the token contract address and decimals from the xcash database, so it works for any currency that xcash has provisioned on the `anvil` chain.
+
+```bash
+# Copy the script into the running xcash container
+docker cp scripts/send_anvil.py xcash_django:/tmp/send_anvil.py
+
+# Mint USDT (default when first arg is an address)
+docker exec xcash_django python /tmp/send_anvil.py 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 20
+
+# Explicit currency: USDT
+docker exec xcash_django python /tmp/send_anvil.py USDT 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 20
+
+# Explicit currency: USDC
+docker exec xcash_django python /tmp/send_anvil.py USDC 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 5
+
+# Native ETH transfer
+docker exec xcash_django python /tmp/send_anvil.py ETH 0x7e77B4AD9AA1e006da07fc1A906e8f8195606e16 0.5
+```
+
+The script auto-detects native tokens (e.g. ETH) by their empty contract address in `CryptoOnChain` and performs a regular value transfer instead of an ERC20 `mint`. ERC20 tokens must have a deployed mock contract; the script prints a clear error if the contract is missing (usually because the anvil chain was restarted and the mocks need to be redeployed).
+
 ## Wallet Endpoints
 
 | Gateway Endpoint | Description |
