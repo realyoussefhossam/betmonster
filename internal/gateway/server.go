@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -74,6 +75,31 @@ func splitTrim(s string) []string {
 		}
 	}
 	return out
+}
+
+func (s *Server) isSupportedCurrency(c string) bool {
+	for _, c2 := range s.supportedCurrencies {
+		if c2 == c {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) isSupportedChain(c string) bool {
+	for _, c2 := range s.supportedChains {
+		if c2 == c {
+			return true
+		}
+	}
+	return false
+}
+
+func firstOrEmpty(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[0]
 }
 
 func (s *Server) Router() http.Handler {
@@ -178,7 +204,11 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 	}
 	currency := r.URL.Query().Get("currency")
 	if currency == "" {
-		currency = "USDT"
+		currency = firstOrEmpty(s.supportedCurrencies)
+	}
+	if !s.isSupportedCurrency(currency) {
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency: %s", currency))
+		return
 	}
 	resp, err := s.wallet.GetBalance(r.Context(), user.ID, currency)
 	if err != nil {
@@ -210,10 +240,18 @@ func (s *Server) handleDepositAddress(w http.ResponseWriter, r *http.Request) {
 	currency := q.Get("currency")
 	chain := q.Get("chain")
 	if currency == "" {
-		currency = "USDT"
+		currency = firstOrEmpty(s.supportedCurrencies)
 	}
 	if chain == "" {
-		chain = "base"
+		chain = firstOrEmpty(s.supportedChains)
+	}
+	if !s.isSupportedCurrency(currency) {
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency: %s", currency))
+		return
+	}
+	if !s.isSupportedChain(chain) {
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported chain: %s", chain))
+		return
 	}
 	resp, err := s.wallet.GetDepositAddress(r.Context(), user.ID, currency, chain)
 	if err != nil {
@@ -239,10 +277,18 @@ func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.Currency == "" {
-		body.Currency = "USDT"
+		body.Currency = firstOrEmpty(s.supportedCurrencies)
 	}
 	if body.Chain == "" {
-		body.Chain = "base"
+		body.Chain = firstOrEmpty(s.supportedChains)
+	}
+	if !s.isSupportedCurrency(body.Currency) {
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported currency: %s", body.Currency))
+		return
+	}
+	if !s.isSupportedChain(body.Chain) {
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("unsupported chain: %s", body.Chain))
+		return
 	}
 	if err := s.limits.ValidateWithdrawal(body.Amount); err != nil {
 		s.writeError(w, http.StatusBadRequest, err)
