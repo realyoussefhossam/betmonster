@@ -53,6 +53,19 @@ func (s *Service) validatePair(currency, chain string) error {
 	return nil
 }
 
+func (s *Service) supportedCurrencies() []string {
+	out := make([]string, 0, len(s.supportedPairs))
+	seen := map[string]struct{}{}
+	for pair := range s.supportedPairs {
+		parts := strings.SplitN(pair, ":", 2)
+		if _, ok := seen[parts[0]]; !ok {
+			seen[parts[0]] = struct{}{}
+			out = append(out, parts[0])
+		}
+	}
+	return out
+}
+
 func (s *Service) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error) {
 	return s.store.CreditWallet(ctx, userID, currency, amount, referenceID, metadata)
 }

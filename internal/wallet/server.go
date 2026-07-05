@@ -5,15 +5,34 @@ import (
 	"time"
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
 )
 
 type GRPCServer struct {
 	pb.UnimplementedWalletServiceServer
 	service *Service
+	rates   *rates.Aggregator
 }
 
-func NewGRPCServer(service *Service) *GRPCServer {
-	return &GRPCServer{service: service}
+func NewGRPCServer(service *Service, rates *rates.Aggregator) *GRPCServer {
+	return &GRPCServer{service: service, rates: rates}
+}
+
+func (s *GRPCServer) fiatValue(ctx context.Context, currency, amount string) (string, error) {
+	rate, err := s.rates.GetRate(ctx, "USD", currency)
+	if err != nil {
+		return "", err
+	}
+	return MulDecimalStrings(amount, rate)
+}
+
+func (s *GRPCServer) GetRates(ctx context.Context, req *pb.GetRatesRequest) (*pb.GetRatesResponse, error) {
+	currencies := s.service.supportedCurrencies()
+	rates := s.rates.SupportedRates(ctx, currencies)
+	return &pb.GetRatesResponse{
+		FiatCurrency: "USD",
+		Rates:        rates,
+	}, nil
 }
 
 func (s *GRPCServer) GetBalance(ctx context.Context, req *pb.GetBalanceRequest) (*pb.GetBalanceResponse, error) {
@@ -21,7 +40,19 @@ func (s *GRPCServer) GetBalance(ctx context.Context, req *pb.GetBalanceRequest) 
 	if err != nil {
 		return nil, err
 	}
-	return &pb.GetBalanceResponse{Currency: wallet.Currency, Balance: wallet.Balance}, nil
+	fiatValue := "0"
+	if s.rates != nil {
+		v, err := s.fiatValue(ctx, req.Currency, wallet.Balance)
+		if err == nil {
+			fiatValue = v
+		}
+	}
+	return &pb.GetBalanceResponse{
+		Currency:     wallet.Currency,
+		Balance:      wallet.Balance,
+		FiatCurrency: "USD",
+		FiatValue:    fiatValue,
+	}, nil
 }
 
 func (s *GRPCServer) ListTransactions(ctx context.Context, req *pb.ListTransactionsRequest) (*pb.ListTransactionsResponse, error) {
@@ -31,11 +62,19 @@ func (s *GRPCServer) ListTransactions(ctx context.Context, req *pb.ListTransacti
 	}
 	out := make([]*pb.Transaction, len(txns))
 	for i, t := range txns {
+		fiatValue := "0"
+		if s.rates != nil {
+			v, err := s.fiatValue(ctx, t.Currency, t.Amount)
+			if err == nil {
+				fiatValue = v
+			}
+		}
 		out[i] = &pb.Transaction{
 			Id: t.ID, UserId: t.UserID, WalletId: t.WalletID, Type: t.Type,
 			Amount: t.Amount, BalanceBefore: t.BalanceBefore, BalanceAfter: t.BalanceAfter,
 			Status: t.Status, ReferenceId: t.ReferenceID, Metadata: t.Metadata,
 			CreatedAt: t.CreatedAt.Format(time.RFC3339),
+			FiatValue: fiatValue,
 		}
 	}
 	return &pb.ListTransactionsResponse{Transactions: out}, nil

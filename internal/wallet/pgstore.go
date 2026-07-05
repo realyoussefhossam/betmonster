@@ -120,11 +120,11 @@ func (s *PGStore) CreditWallet(ctx context.Context, userID, currency, amount, re
 
 	var txn Transaction
 	q := `
-		INSERT INTO transactions (user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id, metadata)
-		VALUES ($1, $2, 'deposit', $3, $4, $5, 'completed', $6, $7)
+		INSERT INTO transactions (user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id, metadata)
+		VALUES ($1, $2, $3, 'deposit', $4, $5, $6, 'completed', $7, $8)
 		RETURNING id, created_at
 	`
-	err = tx.QueryRowContext(ctx, q, userID, w.ID, amount, w.Balance, newBalance, refID, metadata).Scan(&txn.ID, &txn.CreatedAt)
+	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID, metadata).Scan(&txn.ID, &txn.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert transaction: %w", err)
 	}
@@ -135,6 +135,7 @@ func (s *PGStore) CreditWallet(ctx context.Context, userID, currency, amount, re
 
 	txn.UserID = userID
 	txn.WalletID = w.ID
+	txn.Currency = currency
 	txn.Type = "deposit"
 	txn.Amount = amount
 	txn.BalanceBefore = w.Balance
@@ -198,11 +199,11 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 
 	var txn Transaction
 	q := `
-		INSERT INTO transactions (user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id)
-		VALUES ($1, $2, 'withdrawal', $3, $4, $5, 'completed', $6)
+		INSERT INTO transactions (user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id)
+		VALUES ($1, $2, $3, 'withdrawal', $4, $5, $6, 'completed', $7)
 		RETURNING id, created_at
 	`
-	err = tx.QueryRowContext(ctx, q, userID, w.ID, amount, w.Balance, newBalance, refID).Scan(&txn.ID, &txn.CreatedAt)
+	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID).Scan(&txn.ID, &txn.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert transaction: %w", err)
 	}
@@ -213,6 +214,7 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 
 	txn.UserID = userID
 	txn.WalletID = w.ID
+	txn.Currency = currency
 	txn.Type = "withdrawal"
 	txn.Amount = amount
 	txn.BalanceBefore = w.Balance
@@ -224,14 +226,14 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 
 func (s *PGStore) getTransactionByID(ctx context.Context, tx *sql.Tx, id string) (*Transaction, error) {
 	const q = `
-		SELECT id, user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id, metadata, created_at
+		SELECT id, user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id, metadata, created_at
 		FROM transactions
 		WHERE id = $1
 	`
 	var t Transaction
 	var metadata, referenceID sql.NullString
 	err := tx.QueryRowContext(ctx, q, id).Scan(
-		&t.ID, &t.UserID, &t.WalletID, &t.Type, &t.Amount, &t.BalanceBefore, &t.BalanceAfter,
+		&t.ID, &t.UserID, &t.WalletID, &t.Currency, &t.Type, &t.Amount, &t.BalanceBefore, &t.BalanceAfter,
 		&t.Status, &referenceID, &metadata, &t.CreatedAt,
 	)
 	if err != nil {
@@ -342,9 +344,9 @@ func (s *PGStore) RequestWithdrawal(ctx context.Context, userID, currency, amoun
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO transactions (user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id)
-		VALUES ($1, $2, 'withdrawal', $3, $4, $5, 'pending', $6)
-	`, userID, w.ID, amount, w.Balance, newBalance, req.ID)
+		INSERT INTO transactions (user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id)
+		VALUES ($1, $2, $3, 'withdrawal', $4, $5, $6, 'pending', $7)
+	`, userID, w.ID, currency, amount, w.Balance, newBalance, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf("insert transaction: %w", err)
 	}
@@ -472,9 +474,9 @@ func (s *PGStore) RejectWithdrawal(ctx context.Context, id, reviewedBy string) (
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO transactions (user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id)
-		VALUES ($1, $2, 'adjustment', $3, $4, $5, 'completed', $6)
-	`, req.UserID, w.ID, req.Amount, w.Balance, reversedBalance, id+"-reversal")
+		INSERT INTO transactions (user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id)
+		VALUES ($1, $2, $3, 'adjustment', $4, $5, $6, 'completed', $7)
+	`, req.UserID, w.ID, req.Currency, req.Amount, w.Balance, reversedBalance, id+"-reversal")
 	if err != nil {
 		return nil, fmt.Errorf("insert reversal transaction: %w", err)
 	}
@@ -538,7 +540,7 @@ func (s *PGStore) ListTransactions(ctx context.Context, userID string, page, pag
 	offset := (page - 1) * pageSize
 
 	const q = `
-		SELECT id, user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id, metadata, created_at
+		SELECT id, user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id, metadata, created_at
 		FROM transactions
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -555,7 +557,7 @@ func (s *PGStore) ListTransactions(ctx context.Context, userID string, page, pag
 		var t Transaction
 		var metadata, referenceID sql.NullString
 		if err := rows.Scan(
-			&t.ID, &t.UserID, &t.WalletID, &t.Type, &t.Amount, &t.BalanceBefore, &t.BalanceAfter,
+			&t.ID, &t.UserID, &t.WalletID, &t.Currency, &t.Type, &t.Amount, &t.BalanceBefore, &t.BalanceAfter,
 			&t.Status, &referenceID, &metadata, &t.CreatedAt,
 		); err != nil {
 			return nil, err

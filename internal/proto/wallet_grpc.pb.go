@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	WalletService_GetRates_FullMethodName               = "/wallet.WalletService/GetRates"
 	WalletService_GetBalance_FullMethodName             = "/wallet.WalletService/GetBalance"
 	WalletService_ListTransactions_FullMethodName       = "/wallet.WalletService/ListTransactions"
 	WalletService_GetDepositAddress_FullMethodName      = "/wallet.WalletService/GetDepositAddress"
@@ -32,6 +33,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WalletServiceClient interface {
+	GetRates(ctx context.Context, in *GetRatesRequest, opts ...grpc.CallOption) (*GetRatesResponse, error)
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error)
 	ListTransactions(ctx context.Context, in *ListTransactionsRequest, opts ...grpc.CallOption) (*ListTransactionsResponse, error)
 	GetDepositAddress(ctx context.Context, in *GetDepositAddressRequest, opts ...grpc.CallOption) (*GetDepositAddressResponse, error)
@@ -47,6 +49,16 @@ type walletServiceClient struct {
 
 func NewWalletServiceClient(cc grpc.ClientConnInterface) WalletServiceClient {
 	return &walletServiceClient{cc}
+}
+
+func (c *walletServiceClient) GetRates(ctx context.Context, in *GetRatesRequest, opts ...grpc.CallOption) (*GetRatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRatesResponse)
+	err := c.cc.Invoke(ctx, WalletService_GetRates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *walletServiceClient) GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error) {
@@ -123,6 +135,7 @@ func (c *walletServiceClient) ReviewWithdrawal(ctx context.Context, in *ReviewWi
 // All implementations must embed UnimplementedWalletServiceServer
 // for forward compatibility.
 type WalletServiceServer interface {
+	GetRates(context.Context, *GetRatesRequest) (*GetRatesResponse, error)
 	GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error)
 	ListTransactions(context.Context, *ListTransactionsRequest) (*ListTransactionsResponse, error)
 	GetDepositAddress(context.Context, *GetDepositAddressRequest) (*GetDepositAddressResponse, error)
@@ -140,6 +153,9 @@ type WalletServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedWalletServiceServer struct{}
 
+func (UnimplementedWalletServiceServer) GetRates(context.Context, *GetRatesRequest) (*GetRatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRates not implemented")
+}
 func (UnimplementedWalletServiceServer) GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBalance not implemented")
 }
@@ -180,6 +196,24 @@ func RegisterWalletServiceServer(s grpc.ServiceRegistrar, srv WalletServiceServe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&WalletService_ServiceDesc, srv)
+}
+
+func _WalletService_GetRates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).GetRates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_GetRates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).GetRates(ctx, req.(*GetRatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _WalletService_GetBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -315,6 +349,10 @@ var WalletService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "wallet.WalletService",
 	HandlerType: (*WalletServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetRates",
+			Handler:    _WalletService_GetRates_Handler,
+		},
 		{
 			MethodName: "GetBalance",
 			Handler:    _WalletService_GetBalance_Handler,

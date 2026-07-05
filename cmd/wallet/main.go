@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/realyoussefhossam/betmonster/internal/shared/config"
 	"github.com/realyoussefhossam/betmonster/internal/shared/logging"
 	"github.com/realyoussefhossam/betmonster/internal/wallet"
+	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
 )
 
@@ -58,8 +61,23 @@ func main() {
 	validator := xcash.NewWebhookValidator(cfg.XCashWebhookSecret)
 	pairs := splitTrim(cfg.SupportedPairs)
 	svc := wallet.NewService(store, xc, validator, pairs)
+
+	cacheTTL := 30 * time.Second
+	if v := os.Getenv("RATES_CACHE_TTL_SECONDS"); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil {
+			cacheTTL = time.Duration(secs) * time.Second
+		}
+	}
+	rateCache := rates.NewCache(cacheTTL)
+	aggregator := rates.NewAggregator(rateCache,
+		rates.NewBinance(),
+		rates.NewCoinbase(),
+		rates.NewKraken(),
+		rates.NewKuCoin(),
+	)
+
 	grpcServer := grpc.NewServer()
-	proto.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc))
+	proto.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, aggregator))
 
 	go startHealthServer(logger, cfg.Port)
 

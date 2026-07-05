@@ -16,6 +16,7 @@ type Transaction struct {
 	ID            string
 	UserID        string
 	WalletID      string
+	Currency      string
 	Type          string
 	Amount        string
 	BalanceBefore string

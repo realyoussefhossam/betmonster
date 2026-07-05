@@ -80,7 +80,7 @@ func TestHandleXcashWebhookParsesNestedAmount(t *testing.T) {
 	validator := xcash.NewWebhookValidator("hmac-key")
 	svc := wallet.NewService(store, nil, validator, []string{"USDT:anvil"})
 	grpcServer := grpc.NewServer()
-	pb.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc))
+	pb.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, nil))
 
 	listener := bufconn.Listen(1024)
 	go func() {
