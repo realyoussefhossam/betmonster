@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -114,4 +115,20 @@ func TestGRPCServerListTransactionsIncludesCreatedAt(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, resp.Transactions, 1)
 	assert.NotEmpty(t, resp.Transactions[0].CreatedAt, "created_at should be populated")
+}
+
+func TestGRPCServerGetBalance_EUR(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	t.Setenv("MANUAL_USD_RATES", `{"EUR":"0.92"}`)
+	r := rates.NewAggregator(rates.NewCache(30*time.Second), rates.NewForexChain(), rates.NewBinance())
+	srv := NewGRPCServer(NewService(store, nil, nil, []string{"USDT:anvil"}), r)
+
+	resp, err := srv.GetBalance(ctx, &pb.GetBalanceRequest{UserId: "user-1", Currency: "USDT", FiatCurrency: "EUR"})
+	require.NoError(t, err)
+	assert.Equal(t, "EUR", resp.FiatCurrency)
+	assert.Equal(t, "92.00", resp.FiatValue)
 }

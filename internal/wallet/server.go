@@ -2,11 +2,24 @@ package wallet
 
 import (
 	"context"
+	"os"
+	"strings"
 	"time"
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
 )
+
+func defaultFiat(reqFiat string) string {
+	fiat := strings.ToUpper(strings.TrimSpace(reqFiat))
+	if fiat == "" {
+		fiat = os.Getenv("DEFAULT_FIAT_CURRENCY")
+	}
+	if fiat == "" || !rates.IsSupportedFiat(fiat) {
+		fiat = "USD"
+	}
+	return fiat
+}
 
 type GRPCServer struct {
 	pb.UnimplementedWalletServiceServer
@@ -18,8 +31,8 @@ func NewGRPCServer(service *Service, rates *rates.Aggregator) *GRPCServer {
 	return &GRPCServer{service: service, rates: rates}
 }
 
-func (s *GRPCServer) fiatValue(ctx context.Context, currency, amount string) (string, error) {
-	rate, err := s.rates.GetRate(ctx, "USD", currency)
+func (s *GRPCServer) fiatValue(ctx context.Context, fiat, currency, amount string) (string, error) {
+	rate, err := s.rates.GetRate(ctx, fiat, currency)
 	if err != nil {
 		return "", err
 	}
@@ -27,11 +40,12 @@ func (s *GRPCServer) fiatValue(ctx context.Context, currency, amount string) (st
 }
 
 func (s *GRPCServer) GetRates(ctx context.Context, req *pb.GetRatesRequest) (*pb.GetRatesResponse, error) {
+	fiat := defaultFiat(req.FiatCurrency)
 	currencies := s.service.supportedCurrencies()
-	rates := s.rates.SupportedRates(ctx, "USD", currencies)
+	rs := s.rates.SupportedRates(ctx, fiat, currencies)
 	return &pb.GetRatesResponse{
-		FiatCurrency: "USD",
-		Rates:        rates,
+		FiatCurrency: fiat,
+		Rates:        rs,
 	}, nil
 }
 
@@ -40,9 +54,10 @@ func (s *GRPCServer) GetBalance(ctx context.Context, req *pb.GetBalanceRequest) 
 	if err != nil {
 		return nil, err
 	}
+	fiat := defaultFiat(req.FiatCurrency)
 	fiatValue := "0"
 	if s.rates != nil {
-		v, err := s.fiatValue(ctx, req.Currency, wallet.Balance)
+		v, err := s.fiatValue(ctx, fiat, wallet.Currency, wallet.Balance)
 		if err == nil {
 			fiatValue = v
 		}
@@ -50,7 +65,7 @@ func (s *GRPCServer) GetBalance(ctx context.Context, req *pb.GetBalanceRequest) 
 	return &pb.GetBalanceResponse{
 		Currency:     wallet.Currency,
 		Balance:      wallet.Balance,
-		FiatCurrency: "USD",
+		FiatCurrency: fiat,
 		FiatValue:    fiatValue,
 	}, nil
 }
@@ -60,11 +75,12 @@ func (s *GRPCServer) ListTransactions(ctx context.Context, req *pb.ListTransacti
 	if err != nil {
 		return nil, err
 	}
+	fiat := defaultFiat(req.FiatCurrency)
 	out := make([]*pb.Transaction, len(txns))
 	for i, t := range txns {
 		fiatValue := "0"
 		if s.rates != nil {
-			v, err := s.fiatValue(ctx, t.Currency, t.Amount)
+			v, err := s.fiatValue(ctx, fiat, t.Currency, t.Amount)
 			if err == nil {
 				fiatValue = v
 			}
