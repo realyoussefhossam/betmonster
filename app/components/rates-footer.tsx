@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { goApiClient } from "@/lib/go-api-client";
-import { useFiatCurrency } from "@/components/fiat-selector";
+import { useFiatCurrency } from "@/components/fiat-provider";
 
 export function RatesFooter() {
   const { fiat } = useFiatCurrency();

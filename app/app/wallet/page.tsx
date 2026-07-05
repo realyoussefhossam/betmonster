@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { WalletCard } from "@/components/wallet-card";
 import { Button } from "@/components/ui/button";
-import { FiatSelector, useFiatCurrency } from "@/components/fiat-selector";
+import { FiatSelector, useFiatCurrency } from "@/components/fiat-provider";
 import {
   goApiClient,
   BalanceResponse,
