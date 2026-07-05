@@ -38,6 +38,9 @@ func (l Limits) validate(amount, min, max, daily, op string) error {
 	if err != nil {
 		return fmt.Errorf("invalid %s amount: %w", op, err)
 	}
+	if !d.IsPositive() {
+		return fmt.Errorf("%s amount must be positive", op)
+	}
 
 	if min != "" {
 		m, err := decimal.NewFromString(min)

@@ -113,3 +113,56 @@ func TestLimits_ValidateDeposit_RejectsInvalidAmount(t *testing.T) {
 		t.Fatal("expected error for invalid amount")
 	}
 }
+
+func TestLimits_RejectsNegativeAmount(t *testing.T) {
+	l := Limits{}
+	if err := l.ValidateWithdrawal("-10"); err == nil {
+		t.Fatal("expected error for negative amount")
+	}
+	if err := l.ValidateDeposit("-0.01"); err == nil {
+		t.Fatal("expected error for negative deposit")
+	}
+}
+
+func TestLimits_RejectsZeroAmount(t *testing.T) {
+	l := Limits{}
+	if err := l.ValidateWithdrawal("0"); err == nil {
+		t.Fatal("expected error for zero amount")
+	}
+	if err := l.ValidateDeposit("0.00"); err == nil {
+		t.Fatal("expected error for zero deposit")
+	}
+}
+
+func TestLimits_AllowsDecimalAmounts(t *testing.T) {
+	l := Limits{
+		MinWithdrawal: "0.00000001",
+		MaxWithdrawal: "100",
+	}
+	if err := l.ValidateWithdrawal("10.50"); err != nil {
+		t.Fatalf("expected decimal amount to be valid, got error: %v", err)
+	}
+	if err := l.ValidateWithdrawal("0.00000001"); err != nil {
+		t.Fatalf("expected small decimal amount to be valid, got error: %v", err)
+	}
+}
+
+func TestLimits_BoundaryAmounts(t *testing.T) {
+	l := Limits{
+		MinWithdrawal: "10",
+		MaxWithdrawal: "100",
+	}
+	if err := l.ValidateWithdrawal("10"); err != nil {
+		t.Fatalf("expected amount at minimum to be valid: %v", err)
+	}
+	if err := l.ValidateWithdrawal("100"); err != nil {
+		t.Fatalf("expected amount at maximum to be valid: %v", err)
+	}
+}
+
+func TestLimits_RequiresAmount(t *testing.T) {
+	l := Limits{}
+	if err := l.ValidateWithdrawal(""); err == nil {
+		t.Fatal("expected error for empty amount")
+	}
+}
