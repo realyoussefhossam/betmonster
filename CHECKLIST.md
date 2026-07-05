@@ -23,7 +23,7 @@
 - [x] Expose public HTTP endpoints: `/api/wallet/*`, `/api/admin/*`, `/webhooks/xcash/*`.
 - [x] Add admin authorization middleware.
 - [x] Add structured logging.
-- [ ] Add rate limiting.
+- [x] Add rate limiting.
 
 ### Wallet Service
 - [x] Implement `GetBalance` gRPC handler.
@@ -60,15 +60,16 @@
 
 ### Security & Production
 - [x] Add structured JSON logs.
-- [ ] Add request ID logging.
+- [x] Add request ID logging.
 - [x] Add health checks for Postgres, Redis, NATS services.
 - [ ] Add Prometheus metrics.
-- [ ] Add deposit/withdrawal limits (configurable, even if not enforced in v1).
+- [x] Add deposit/withdrawal limits (configurable, even if not enforced in v1).
 - [ ] Add KYC/AML hooks in schema.
 
 ### Documentation
 - [x] Update `README.md` with new architecture and local dev instructions.
-- [ ] Keep `AGENTS.md` updated with production-ready notes.
+- [x] Document `SUPPORTED_PAIRS` configuration and how to add/remove assets.
+- [x] Keep `AGENTS.md` updated with production-ready notes.
 - [ ] Add runbook for xcash webhook troubleshooting.
 
 ## Microservices Roadmap

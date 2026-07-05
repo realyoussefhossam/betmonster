@@ -6,23 +6,45 @@ BetMonster is an open-source, self-hosted sportsbook/casino platform. The v1 foc
 
 ## Supported Assets
 
-The platform is designed to support multiple crypto assets. The current v1 implementation supports every asset and chain that xcash can process. The wallet schema and gateway are asset-agnostic, so additional non-xcash assets can be added later.
+The v1 implementation supports the EVM and Tron assets that xcash can process. Support is configured through currency-chain pairs (`SUPPORTED_PAIRS`), so the gateway and wallet only accept combinations that you explicitly enable. The wallet schema and gateway are asset-agnostic, so additional non-xcash assets can be added later.
 
 | Asset | Networks | v1 status | Notes |
 |-------|----------|-----------|-------|
-| USDT | ERC20, TRC20, BEP20, Base, other EVM | **Supported** | Default stablecoin for wagering. |
-| USDC | ERC20, TRC20, BEP20, Base, other EVM | **Supported** | Alternative stablecoin. |
-| ETH | Ethereum, Base, other EVM | **Supported** | Native EVM asset. |
-| BETM | ERC20, other EVM | **Native token** (optional) | Project-native token used for gaming features and rewards. Rename to your project ticker. |
-| BNB | BNB Smart Chain | **Supported** | EVM-compatible chain. |
-| TRX | Tron Network | **Supported** | Very low fees. |
+| USDT | ERC20, TRC20, BEP20, Polygon | **Supported** | Default stablecoin for wagering. |
+| USDC | ERC20, BEP20, Polygon, Base, Arbitrum One | **Supported** | Alternative stablecoin. |
+| ETH | Ethereum, BNB Smart Chain, Base | **Supported** | Native EVM asset. |
+| BNB | BNB Smart Chain | **Supported** | Native BSC asset. |
+| TRX | Tron Network | **Supported** | Native Tron asset. |
+| POL | Polygon, Ethereum | **Supported** | Polygon native token. |
+| DAI | Ethereum | **Supported** | Stablecoin. |
+| SHIB | Ethereum | **Supported** | Meme token. |
+| BUSD | BNB Smart Chain | **Supported** | Binance stablecoin. |
+| BETM | ERC20 | **Native token** (optional) | Project-native token used for gaming features and rewards. Rename to your project ticker. |
 | BTC | Bitcoin Network | Future | Non-EVM / non-Tron chain. |
 | SOL | Solana | Future | Non-EVM / non-Tron chain. |
 | LTC | Litecoin | Future | Non-EVM / non-Tron chain. |
 | DOGE | Dogecoin Network | Future | Non-EVM / non-Tron chain. |
 | XRP | XRP Ledger | Future | Non-EVM / non-Tron chain; requires destination tags. |
+| AVAX | Avalanche C-Chain | Future | xcash does not support Avalanche in v1. |
+| TON / GRAM | TON | Future | Non-EVM / non-Tron chain; requires memo/tag. |
 
-The v1 gateway defaults to `SUPPORTED_CURRENCIES=USDT,USDC` and `SUPPORTED_CHAINS=anvil`. Operators can enable any EVM or Tron asset/chain that xcash supports by updating `SUPPORTED_CURRENCIES` and `SUPPORTED_CHAINS`. BTC, SOL, LTC, DOGE, and XRP require non-EVM pipeline work and are out of scope for v1.
+### Configuring pairs
+
+Set `SUPPORTED_PAIRS` in `.env` to define which currency exists on which chain. The default in `.env.example` includes `anvil:*` pairs for local testing with `setup-xcash.sh`; remove them in production.
+
+```bash
+SUPPORTED_PAIRS=USDT:anvil,USDT:ethereum,USDT:bsc,USDT:polygon,USDT:tron,USDC:anvil,USDC:ethereum,USDC:bsc,USDC:polygon,USDC:base,USDC:arbitrum-one,ETH:anvil,ETH:ethereum,ETH:bsc,ETH:base,BNB:bsc,TRX:tron,POL:ethereum,POL:polygon,DAI:ethereum,SHIB:ethereum,BUSD:bsc
+```
+
+`SUPPORTED_CURRENCIES` and `SUPPORTED_CHAINS` are derived from `SUPPORTED_PAIRS` automatically. You can set them explicitly if you need to hide a currency or chain from the UI without removing the underlying pair.
+
+### Adding or removing assets
+
+1. Register the currency and chain in xcash (for EVM: activate the chain and map the token contract via `CryptoOnChain`; for Tron: only `USDT` and `TRX` are supported for deposit addresses).
+2. Add or remove the pair from `SUPPORTED_PAIRS` in `.env`.
+3. Restart the gateway and wallet containers.
+
+BTC, SOL, LTC, DOGE, and XRP require non-EVM pipeline work and are out of scope for v1.
 
 ## Architecture
 

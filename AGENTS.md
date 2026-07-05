@@ -24,7 +24,8 @@ Build an **open-source, self-hosted sportsbook/casino platform** — similar to 
 - **Microservices from v1**: gateway and wallet are separate Go binaries with their own database.
 - **Internal communication**: gRPC (gateway → wallet), NATS for events.
 - **Wallet model**: per-currency balances. v1 supports every EVM and Tron asset that xcash can process; the schema is asset-agnostic so non-xcash assets can be added later.
-- **Supported asset roadmap**: v1 supports USDT, USDC, ETH, BNB, TRX, and an optional native token (e.g., `BETM`) on EVM/Tron chains. BTC, SOL, LTC, DOGE, XRP are future non-EVM/non-Tron assets.
+- **Supported asset roadmap**: v1 supports USDT, USDC, ETH, BNB, TRX, POL, DAI, SHIB, BUSD, and an optional native token (e.g., `BETM`) on EVM/Tron chains that xcash can process. BTC, SOL, LTC, DOGE, XRP, AVAX, TON are future non-EVM/non-Tron or non-xcash assets.
+- **Supported pairs**: support is declared with `SUPPORTED_PAIRS` (`USDT:ethereum`, `BNB:bsc`, `TRX:tron`, etc.). The gateway and wallet validate the currency-chain combination, and the frontend filters the chain dropdown by currency. `SUPPORTED_CURRENCIES` and `SUPPORTED_CHAINS` are derived from the pairs.
 - **Deposits**: xcash per-user deposit address (`GET /v1/deposit/address`) + webhook (`type: deposit`). xcash handles EVM chains and Tron; non-EVM assets are future work.
 - **Withdrawals**: manual admin in v1. The wallet debits on request, admin approves and supplies the on-chain tx hash.
 - **xcash does not support withdrawals**. Withdrawals must be handled outside xcash.
@@ -92,6 +93,11 @@ Rules for money-related code:
   - Reach xcash over a private Docker network (e.g., `xcash_public`) in production/self-hosted deployments; avoid routing deposit address requests through the public internet or host loopback.
   - Validate xcash webhook HMAC signature.
   - Never log private keys or webhook secrets.
+
+- **Supported currency-chain pairs**:
+  - Declare supported combinations with `SUPPORTED_PAIRS`. The gateway and wallet reject any currency/chain pair not in the list, and the frontend filters the chain dropdown by selected currency.
+  - Pairs must be kept in sync with the xcash deployment: the chain must be active, the token must be registered, and the token must be mapped to the chain via `CryptoOnChain` (and `CryptoOnChain.active=True`). For Tron, xcash only supports `USDT` and `TRX` for deposit addresses.
+  - Remove `anvil:*` pairs in production; they are only for local testing with `setup-xcash.sh`.
 
 - **Compliance hooks**:
   - v1 does not enforce KYC/AML, but schema includes `kyc_status` and `withdrawal.kyc_required`.
