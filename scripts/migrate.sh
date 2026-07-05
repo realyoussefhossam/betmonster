@@ -8,15 +8,15 @@ cd "$ROOT"
 
 case "${1:-up}" in
   up)
-    go run github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
+    go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
       -database "${DATABASE_URL}" -path wallet/migrations up
     ;;
   down)
-    go run github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
+    go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
       -database "${DATABASE_URL}" -path wallet/migrations down 1
     ;;
   create)
-    go run github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
+    go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
       create -ext sql -dir wallet/migrations -seq "${2:-migration}"
     ;;
   *)

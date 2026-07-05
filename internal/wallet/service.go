@@ -81,26 +81,18 @@ func (s *Service) ProcessDepositWebhook(ctx context.Context, body []byte, header
 }
 
 func (s *Service) RequestWithdrawal(ctx context.Context, userID, currency, amount, destinationAddress, chain string) (*WithdrawalRequest, error) {
-	wallet, err := s.store.GetWallet(ctx, userID, currency)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := s.store.DebitWallet(ctx, userID, currency, amount, ""); err != nil {
-		return nil, err
-	}
-	req := &WithdrawalRequest{
-		UserID:             userID,
-		WalletID:           wallet.ID,
-		Amount:             amount,
-		Currency:           currency,
-		DestinationAddress: destinationAddress,
-		Chain:              chain,
-	}
-	return s.store.CreateWithdrawalRequest(ctx, req)
+	return s.store.RequestWithdrawal(ctx, userID, currency, amount, destinationAddress, chain)
 }
 
 func (s *Service) ReviewWithdrawal(ctx context.Context, id, action, txHash, reviewedBy string) (*WithdrawalRequest, error) {
-	return s.store.ReviewWithdrawal(ctx, id, action, txHash, reviewedBy)
+	switch action {
+	case "approve":
+		return s.store.ApproveWithdrawal(ctx, id, txHash, reviewedBy)
+	case "reject":
+		return s.store.RejectWithdrawal(ctx, id, reviewedBy)
+	default:
+		return nil, errors.New("invalid action")
+	}
 }
 
 func (s *Service) ListTransactions(ctx context.Context, userID string, page, pageSize int) ([]Transaction, error) {

@@ -229,12 +229,19 @@ func (s *PGStore) getTransactionByID(ctx context.Context, tx *sql.Tx, id string)
 		WHERE id = $1
 	`
 	var t Transaction
+	var metadata, referenceID sql.NullString
 	err := tx.QueryRowContext(ctx, q, id).Scan(
 		&t.ID, &t.UserID, &t.WalletID, &t.Type, &t.Amount, &t.BalanceBefore, &t.BalanceAfter,
-		&t.Status, &t.ReferenceID, &t.Metadata, &t.CreatedAt,
+		&t.Status, &referenceID, &metadata, &t.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if metadata.Valid {
+		t.Metadata = metadata.String
+	}
+	if referenceID.Valid {
+		t.ReferenceID = referenceID.String
 	}
 	return &t, nil
 }
@@ -277,18 +284,205 @@ func (s *PGStore) CreateDepositAddress(ctx context.Context, addr *DepositAddress
 	return addr, nil
 }
 
-func (s *PGStore) CreateWithdrawalRequest(ctx context.Context, req *WithdrawalRequest) (*WithdrawalRequest, error) {
-	const q = `
+func (s *PGStore) RequestWithdrawal(ctx context.Context, userID, currency, amount, destinationAddress, chain string) (*WithdrawalRequest, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	var w Wallet
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, balance, version FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE",
+		userID, currency,
+	).Scan(&w.ID, &w.Balance, &w.Version)
+	if err == sql.ErrNoRows {
+		return nil, ErrWalletNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get wallet: %w", err)
+	}
+
+	currentBalance, err := decimal.NewFromString(w.Balance)
+	if err != nil {
+		return nil, fmt.Errorf("parse balance: %w", err)
+	}
+	withdrawalAmount, err := decimal.NewFromString(amount)
+	if err != nil {
+		return nil, fmt.Errorf("parse amount: %w", err)
+	}
+	if currentBalance.LessThan(withdrawalAmount) {
+		return nil, ErrInsufficientBalance
+	}
+
+	newBalance := subDecimal(w.Balance, amount)
+	res, err := tx.ExecContext(ctx,
+		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
+		newBalance, w.ID, w.Version,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update wallet: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+	if rows == 0 {
+		return nil, ErrWalletConflict
+	}
+
+	var req WithdrawalRequest
+	err = tx.QueryRowContext(ctx, `
 		INSERT INTO withdrawal_requests (user_id, wallet_id, amount, currency, destination_address, chain, status)
 		VALUES ($1, $2, $3, $4, $5, $6, 'pending')
 		RETURNING id, status, created_at
-	`
-	err := s.db.QueryRowContext(ctx, q, req.UserID, req.WalletID, req.Amount, req.Currency, req.DestinationAddress, req.Chain).
-		Scan(&req.ID, &req.Status, &req.CreatedAt)
+	`, userID, w.ID, amount, currency, destinationAddress, chain).Scan(&req.ID, &req.Status, &req.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("create withdrawal request: %w", err)
 	}
-	return req, nil
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO transactions (user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id)
+		VALUES ($1, $2, 'withdrawal', $3, $4, $5, 'pending', $6)
+	`, userID, w.ID, amount, w.Balance, newBalance, req.ID)
+	if err != nil {
+		return nil, fmt.Errorf("insert transaction: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+
+	req.UserID = userID
+	req.WalletID = w.ID
+	req.Currency = currency
+	req.DestinationAddress = destinationAddress
+	req.Chain = chain
+	req.Amount = amount
+	return &req, nil
+}
+
+func (s *PGStore) ApproveWithdrawal(ctx context.Context, id, txHash, reviewedBy string) (*WithdrawalRequest, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	const q = `
+		UPDATE withdrawal_requests
+		SET status = 'approved', tx_hash = $1, reviewed_by = $2, updated_at = NOW()
+		WHERE id = $3 AND status = 'pending'
+		RETURNING id, user_id, wallet_id, amount, currency, destination_address, chain, status, tx_hash, reviewed_by, created_at
+	`
+	var w WithdrawalRequest
+	var returnedTxHash, returnedReviewedBy sql.NullString
+	err = tx.QueryRowContext(ctx, q, txHash, reviewedBy, id).Scan(
+		&w.ID, &w.UserID, &w.WalletID, &w.Amount, &w.Currency, &w.DestinationAddress, &w.Chain,
+		&w.Status, &returnedTxHash, &returnedReviewedBy, &w.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, errors.New("withdrawal request not found or not pending")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("approve withdrawal: %w", err)
+	}
+	if returnedTxHash.Valid {
+		w.TxHash = returnedTxHash.String
+	}
+	if returnedReviewedBy.Valid {
+		w.ReviewedBy = returnedReviewedBy.String
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE transactions SET status = 'completed', updated_at = NOW() WHERE reference_id = $1
+	`, id)
+	if err != nil {
+		return nil, fmt.Errorf("update transaction: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return &w, nil
+}
+
+func (s *PGStore) RejectWithdrawal(ctx context.Context, id, reviewedBy string) (*WithdrawalRequest, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	const q = `
+		UPDATE withdrawal_requests
+		SET status = 'rejected', reviewed_by = $1, updated_at = NOW()
+		WHERE id = $2 AND status = 'pending'
+		RETURNING id, user_id, wallet_id, amount, currency, destination_address, chain, status, tx_hash, reviewed_by, created_at
+	`
+	var req WithdrawalRequest
+	var returnedTxHash, returnedReviewedBy sql.NullString
+	err = tx.QueryRowContext(ctx, q, reviewedBy, id).Scan(
+		&req.ID, &req.UserID, &req.WalletID, &req.Amount, &req.Currency, &req.DestinationAddress, &req.Chain,
+		&req.Status, &returnedTxHash, &returnedReviewedBy, &req.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, errors.New("withdrawal request not found or not pending")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reject withdrawal: %w", err)
+	}
+	if returnedTxHash.Valid {
+		req.TxHash = returnedTxHash.String
+	}
+	if returnedReviewedBy.Valid {
+		req.ReviewedBy = returnedReviewedBy.String
+	}
+
+	var w Wallet
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, balance, version FROM wallets WHERE id = $1 FOR UPDATE",
+		req.WalletID,
+	).Scan(&w.ID, &w.Balance, &w.Version)
+	if err != nil {
+		return nil, fmt.Errorf("get wallet: %w", err)
+	}
+
+	reversedBalance := addDecimal(w.Balance, req.Amount)
+	res, err := tx.ExecContext(ctx,
+		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
+		reversedBalance, w.ID, w.Version,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update wallet: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+	if rows == 0 {
+		return nil, ErrWalletConflict
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE transactions SET status = 'reversed', updated_at = NOW() WHERE reference_id = $1
+	`, id)
+	if err != nil {
+		return nil, fmt.Errorf("update transaction: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO transactions (user_id, wallet_id, type, amount, balance_before, balance_after, status, reference_id)
+		VALUES ($1, $2, 'adjustment', $3, $4, $5, 'completed', $6)
+	`, req.UserID, w.ID, req.Amount, w.Balance, reversedBalance, id+"-reversal")
+	if err != nil {
+		return nil, fmt.Errorf("insert reversal transaction: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return &req, nil
 }
 
 func (s *PGStore) ListPendingWithdrawals(ctx context.Context, page, pageSize int) ([]WithdrawalRequest, error) {
@@ -316,46 +510,22 @@ func (s *PGStore) ListPendingWithdrawals(ctx context.Context, page, pageSize int
 	var out []WithdrawalRequest
 	for rows.Next() {
 		var w WithdrawalRequest
+		var txHash, reviewedBy sql.NullString
 		if err := rows.Scan(
 			&w.ID, &w.UserID, &w.WalletID, &w.Amount, &w.Currency, &w.DestinationAddress, &w.Chain,
-			&w.Status, &w.TxHash, &w.ReviewedBy, &w.CreatedAt,
+			&w.Status, &txHash, &reviewedBy, &w.CreatedAt,
 		); err != nil {
 			return nil, err
+		}
+		if txHash.Valid {
+			w.TxHash = txHash.String
+		}
+		if reviewedBy.Valid {
+			w.ReviewedBy = reviewedBy.String
 		}
 		out = append(out, w)
 	}
 	return out, rows.Err()
-}
-
-func (s *PGStore) ReviewWithdrawal(ctx context.Context, id, action, txHash, reviewedBy string) (*WithdrawalRequest, error) {
-	var status string
-	switch action {
-	case "approve":
-		status = "approved"
-	case "reject":
-		status = "rejected"
-	default:
-		return nil, errors.New("invalid action")
-	}
-
-	const q = `
-		UPDATE withdrawal_requests
-		SET status = $1, tx_hash = $2, reviewed_by = $3, updated_at = NOW()
-		WHERE id = $4
-		RETURNING id, user_id, wallet_id, amount, currency, destination_address, chain, status, tx_hash, reviewed_by, created_at
-	`
-	var w WithdrawalRequest
-	err := s.db.QueryRowContext(ctx, q, status, txHash, reviewedBy, id).Scan(
-		&w.ID, &w.UserID, &w.WalletID, &w.Amount, &w.Currency, &w.DestinationAddress, &w.Chain,
-		&w.Status, &w.TxHash, &w.ReviewedBy, &w.CreatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, errors.New("withdrawal request not found")
-	}
-	if err != nil {
-		return nil, fmt.Errorf("review withdrawal: %w", err)
-	}
-	return &w, nil
 }
 
 func (s *PGStore) ListTransactions(ctx context.Context, userID string, page, pageSize int) ([]Transaction, error) {
@@ -383,11 +553,18 @@ func (s *PGStore) ListTransactions(ctx context.Context, userID string, page, pag
 	var out []Transaction
 	for rows.Next() {
 		var t Transaction
+		var metadata, referenceID sql.NullString
 		if err := rows.Scan(
 			&t.ID, &t.UserID, &t.WalletID, &t.Type, &t.Amount, &t.BalanceBefore, &t.BalanceAfter,
-			&t.Status, &t.ReferenceID, &t.Metadata, &t.CreatedAt,
+			&t.Status, &referenceID, &metadata, &t.CreatedAt,
 		); err != nil {
 			return nil, err
+		}
+		if metadata.Valid {
+			t.Metadata = metadata.String
+		}
+		if referenceID.Valid {
+			t.ReferenceID = referenceID.String
 		}
 		out = append(out, t)
 	}

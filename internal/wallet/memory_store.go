@@ -14,6 +14,7 @@ type memoryStore struct {
 	mu          sync.Mutex
 	wallets     map[string]*Wallet
 	txns        map[string]*Transaction
+	txnByRef    map[string]*Transaction
 	addresses   map[string]*DepositAddress
 	withdrawals map[string]*WithdrawalRequest
 }
@@ -22,6 +23,7 @@ func newInMemoryStore() *memoryStore {
 	return &memoryStore{
 		wallets:     map[string]*Wallet{},
 		txns:        map[string]*Transaction{},
+		txnByRef:    map[string]*Transaction{},
 		addresses:   map[string]*DepositAddress{},
 		withdrawals: map[string]*WithdrawalRequest{},
 	}
@@ -61,7 +63,7 @@ func (s *memoryStore) CreditWallet(ctx context.Context, userID, currency, amount
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if referenceID != "" {
-		if existing, ok := s.txns[referenceID]; ok {
+		if existing, ok := s.txnByRef[referenceID]; ok {
 			return existing, nil
 		}
 	}
@@ -79,8 +81,9 @@ func (s *memoryStore) CreditWallet(ctx context.Context, userID, currency, amount
 		ReferenceID:   referenceID,
 		CreatedAt:     time.Now(),
 	}
+	s.txns[txn.ID] = txn
 	if referenceID != "" {
-		s.txns[referenceID] = txn
+		s.txnByRef[referenceID] = txn
 	}
 	w.Balance = newBalance
 	w.Version++
@@ -123,8 +126,9 @@ func (s *memoryStore) DebitWallet(ctx context.Context, userID, currency, amount,
 		ReferenceID:   referenceID,
 		CreatedAt:     time.Now(),
 	}
+	s.txns[txn.ID] = txn
 	if referenceID != "" {
-		s.txns[referenceID] = txn
+		s.txnByRef[referenceID] = txn
 	}
 	w.Balance = newBalance
 	w.Version++
@@ -157,13 +161,134 @@ func (s *memoryStore) CreateDepositAddress(ctx context.Context, addr *DepositAdd
 	return addr, nil
 }
 
-func (s *memoryStore) CreateWithdrawalRequest(ctx context.Context, req *WithdrawalRequest) (*WithdrawalRequest, error) {
+func (s *memoryStore) RequestWithdrawal(ctx context.Context, userID, currency, amount, destinationAddress, chain string) (*WithdrawalRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	req.ID = uuid.NewString()
-	req.Status = "pending"
-	req.CreatedAt = time.Now()
+
+	key := s.walletKey(userID, currency)
+	w, ok := s.wallets[key]
+	if !ok {
+		return nil, ErrWalletNotFound
+	}
+
+	currentBalance, err := decimal.NewFromString(w.Balance)
+	if err != nil {
+		return nil, err
+	}
+	withdrawalAmount, err := decimal.NewFromString(amount)
+	if err != nil {
+		return nil, err
+	}
+	if currentBalance.LessThan(withdrawalAmount) {
+		return nil, ErrInsufficientBalance
+	}
+
+	newBalance := subDecimal(w.Balance, amount)
+	w.Balance = newBalance
+	w.Version++
+	w.UpdatedAt = time.Now()
+
+	reqID := uuid.NewString()
+	now := time.Now()
+
+	withdrawalTx := &Transaction{
+		ID:            uuid.NewString(),
+		UserID:        userID,
+		WalletID:      w.ID,
+		Type:          "withdrawal",
+		Amount:        amount,
+		BalanceBefore: currentBalance.String(),
+		BalanceAfter:  newBalance,
+		Status:        "pending",
+		ReferenceID:   reqID,
+		CreatedAt:     now,
+	}
+	s.txns[withdrawalTx.ID] = withdrawalTx
+	s.txnByRef[reqID] = withdrawalTx
+
+	req := &WithdrawalRequest{
+		ID:                 reqID,
+		UserID:             userID,
+		WalletID:           w.ID,
+		Amount:             amount,
+		Currency:           currency,
+		DestinationAddress: destinationAddress,
+		Chain:              chain,
+		Status:             "pending",
+		CreatedAt:          now,
+	}
 	s.withdrawals[req.ID] = req
+
+	return req, nil
+}
+
+func (s *memoryStore) ApproveWithdrawal(ctx context.Context, id, txHash, reviewedBy string) (*WithdrawalRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	req, ok := s.withdrawals[id]
+	if !ok {
+		return nil, errors.New("withdrawal request not found")
+	}
+	if req.Status != "pending" {
+		return nil, errors.New("withdrawal request not pending")
+	}
+
+	req.Status = "approved"
+	req.TxHash = txHash
+	req.ReviewedBy = reviewedBy
+
+	if tx, ok := s.txnByRef[id]; ok {
+		tx.Status = "completed"
+	}
+
+	return req, nil
+}
+
+func (s *memoryStore) RejectWithdrawal(ctx context.Context, id, reviewedBy string) (*WithdrawalRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	req, ok := s.withdrawals[id]
+	if !ok {
+		return nil, errors.New("withdrawal request not found")
+	}
+	if req.Status != "pending" {
+		return nil, errors.New("withdrawal request not pending")
+	}
+
+	w, ok := s.wallets[s.walletKey(req.UserID, req.Currency)]
+	if !ok {
+		return nil, ErrWalletNotFound
+	}
+
+	balanceBefore := w.Balance
+	reversedBalance := addDecimal(w.Balance, req.Amount)
+	w.Balance = reversedBalance
+	w.Version++
+	w.UpdatedAt = time.Now()
+
+	req.Status = "rejected"
+	req.ReviewedBy = reviewedBy
+
+	if tx, ok := s.txnByRef[id]; ok {
+		tx.Status = "reversed"
+	}
+
+	reversalTx := &Transaction{
+		ID:            uuid.NewString(),
+		UserID:        req.UserID,
+		WalletID:      w.ID,
+		Type:          "adjustment",
+		Amount:        req.Amount,
+		BalanceBefore: balanceBefore,
+		BalanceAfter:  reversedBalance,
+		Status:        "completed",
+		ReferenceID:   id + "-reversal",
+		CreatedAt:     time.Now(),
+	}
+	s.txns[reversalTx.ID] = reversalTx
+
 	return req, nil
 }
 
@@ -177,27 +302,6 @@ func (s *memoryStore) ListPendingWithdrawals(ctx context.Context, page, pageSize
 		}
 	}
 	return out, nil
-}
-
-func (s *memoryStore) ReviewWithdrawal(ctx context.Context, id, action, txHash, reviewedBy string) (*WithdrawalRequest, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	w, ok := s.withdrawals[id]
-	if !ok {
-		return nil, errors.New("withdrawal request not found")
-	}
-	switch action {
-	case "approve":
-		w.Status = "approved"
-		w.TxHash = txHash
-		w.ReviewedBy = reviewedBy
-	case "reject":
-		w.Status = "rejected"
-		w.ReviewedBy = reviewedBy
-	default:
-		return nil, errors.New("invalid action")
-	}
-	return w, nil
 }
 
 func (s *memoryStore) ListTransactions(ctx context.Context, userID string, page, pageSize int) ([]Transaction, error) {

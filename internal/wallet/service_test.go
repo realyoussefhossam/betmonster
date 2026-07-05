@@ -76,3 +76,128 @@ func TestServiceGetBalanceCreatesWallet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, wallet.ID, wallet2.ID)
 }
+
+func TestServiceRequestWithdrawal(t *testing.T) {
+	ctx := context.Background()
+	store := newInMemoryStore()
+	svc := NewService(store, nil, nil)
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	assert.NoError(t, err)
+
+	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "polygon")
+	assert.NoError(t, err)
+	assert.Equal(t, "pending", req.Status)
+	assert.Equal(t, "40.00", req.Amount)
+	assert.Equal(t, "polygon", req.Chain)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, "60", wallet.Balance)
+
+	transactions, err := store.ListTransactions(ctx, "user-1", 1, 10)
+	assert.NoError(t, err)
+	assert.Len(t, transactions, 2)
+
+	var withdrawalTx *Transaction
+	for i := range transactions {
+		if transactions[i].Type == "withdrawal" {
+			withdrawalTx = &transactions[i]
+		}
+	}
+	assert.NotNil(t, withdrawalTx)
+	assert.Equal(t, "pending", withdrawalTx.Status)
+	assert.Equal(t, "40.00", withdrawalTx.Amount)
+	assert.Equal(t, "60", withdrawalTx.BalanceAfter)
+}
+
+func TestServiceRequestWithdrawalInsufficientBalance(t *testing.T) {
+	ctx := context.Background()
+	store := newInMemoryStore()
+	svc := NewService(store, nil, nil)
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	assert.NoError(t, err)
+
+	_, err = svc.RequestWithdrawal(ctx, "user-1", "USDT", "150.00", "0xABC", "polygon")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInsufficientBalance)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, "100", wallet.Balance)
+}
+
+func TestServiceApproveWithdrawal(t *testing.T) {
+	ctx := context.Background()
+	store := newInMemoryStore()
+	svc := NewService(store, nil, nil)
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	assert.NoError(t, err)
+
+	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "polygon")
+	assert.NoError(t, err)
+
+	approved, err := svc.ReviewWithdrawal(ctx, req.ID, "approve", "0xTXHASH", "admin-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "approved", approved.Status)
+	assert.Equal(t, "0xTXHASH", approved.TxHash)
+	assert.Equal(t, "admin-1", approved.ReviewedBy)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, "60", wallet.Balance)
+
+	transactions, err := store.ListTransactions(ctx, "user-1", 1, 10)
+	assert.NoError(t, err)
+	var withdrawalTx *Transaction
+	for i := range transactions {
+		if transactions[i].Type == "withdrawal" {
+			withdrawalTx = &transactions[i]
+		}
+	}
+	assert.NotNil(t, withdrawalTx)
+	assert.Equal(t, "completed", withdrawalTx.Status)
+}
+
+func TestServiceRejectWithdrawal(t *testing.T) {
+	ctx := context.Background()
+	store := newInMemoryStore()
+	svc := NewService(store, nil, nil)
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	assert.NoError(t, err)
+
+	req, err := svc.RequestWithdrawal(ctx, "user-1", "USDT", "40.00", "0xABC", "polygon")
+	assert.NoError(t, err)
+
+	rejected, err := svc.ReviewWithdrawal(ctx, req.ID, "reject", "", "admin-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "rejected", rejected.Status)
+	assert.Equal(t, "admin-1", rejected.ReviewedBy)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, "100", wallet.Balance)
+
+	transactions, err := store.ListTransactions(ctx, "user-1", 1, 10)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(transactions), 3)
+
+	var withdrawalTx, reversalTx *Transaction
+	for i := range transactions {
+		switch transactions[i].Type {
+		case "withdrawal":
+			withdrawalTx = &transactions[i]
+		case "adjustment":
+			reversalTx = &transactions[i]
+		}
+	}
+	assert.NotNil(t, withdrawalTx)
+	assert.Equal(t, "reversed", withdrawalTx.Status)
+	assert.NotNil(t, reversalTx)
+	assert.Equal(t, "40.00", reversalTx.Amount)
+	assert.Equal(t, "completed", reversalTx.Status)
+	assert.Equal(t, "100", reversalTx.BalanceAfter)
+}

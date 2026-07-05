@@ -51,11 +51,12 @@
 
 ### Testing
 - [x] Unit tests: wallet credit/debit, idempotency.
-- [ ] Unit tests: concurrent wallet credit/debit, rejection reversal.
+- [x] Unit tests: rejection reversal.
+- [ ] Unit tests: concurrent wallet credit/debit.
 - [x] gRPC contract tests.
 - [x] Mocked xcash webhook integration tests.
 - [ ] End-to-end Docker Compose test for deposit flow.
-- [ ] End-to-end Docker Compose test for withdrawal flow.
+- [x] End-to-end Docker Compose test for withdrawal flow (manual).
 
 ### Security & Production
 - [x] Add structured JSON logs.

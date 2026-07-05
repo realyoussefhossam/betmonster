@@ -15,8 +15,9 @@ type Store interface {
 	ReverseDebit(ctx context.Context, transactionID string) (*Transaction, error)
 	GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error)
 	CreateDepositAddress(ctx context.Context, addr *DepositAddress) (*DepositAddress, error)
-	CreateWithdrawalRequest(ctx context.Context, req *WithdrawalRequest) (*WithdrawalRequest, error)
+	RequestWithdrawal(ctx context.Context, userID, currency, amount, destinationAddress, chain string) (*WithdrawalRequest, error)
+	ApproveWithdrawal(ctx context.Context, id, txHash, reviewedBy string) (*WithdrawalRequest, error)
+	RejectWithdrawal(ctx context.Context, id, reviewedBy string) (*WithdrawalRequest, error)
 	ListPendingWithdrawals(ctx context.Context, page, pageSize int) ([]WithdrawalRequest, error)
-	ReviewWithdrawal(ctx context.Context, id, action, txHash, reviewedBy string) (*WithdrawalRequest, error)
 	ListTransactions(ctx context.Context, userID string, page, pageSize int) ([]Transaction, error)
 }
