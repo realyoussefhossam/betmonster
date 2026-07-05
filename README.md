@@ -147,6 +147,17 @@ docker exec xcash_django python /tmp/send_anvil.py ETH 0x7e77B4AD9AA1e006da07fc1
 
 The script auto-detects native tokens (e.g. ETH) by their empty contract address in `CryptoOnChain` and performs a regular value transfer instead of an ERC20 `mint`. ERC20 tokens must have a deployed mock contract; the script prints a clear error if the contract is missing (usually because the anvil chain was restarted and the mocks need to be redeployed).
 
+### Redeploying anvil mock contracts
+
+If the anvil chain is reset (block number drops back near zero), the xcash database will hold stale contract addresses. Re-run the bootstrap to deploy fresh mocks and update the mappings:
+
+```bash
+docker cp scripts/xcash_bootstrap.py xcash_django:/tmp/xcash_bootstrap.py
+docker exec xcash_django python /tmp/xcash_bootstrap.py
+```
+
+The bootstrap is idempotent: it recreates the anvil chain record, deploys USDT/USDC mocks, funds the xcash system wallet, and ensures the `BetMonster Local` project exists.
+
 ## Wallet Endpoints
 
 | Gateway Endpoint | Description |
