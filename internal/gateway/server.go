@@ -24,9 +24,10 @@ type Server struct {
 	corsAllowAll        bool
 	supportedCurrencies []string
 	supportedChains     []string
+	limits              Limits
 }
 
-func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains string) *Server {
+func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains string, limits Limits) *Server {
 	admins := map[string]struct{}{}
 	for _, id := range strings.Split(adminUserIDs, ",") {
 		id = strings.TrimSpace(id)
@@ -59,6 +60,7 @@ func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSC
 		corsAllowAll:        allowAll,
 		supportedCurrencies: splitTrim(supportedCurrencies),
 		supportedChains:     splitTrim(supportedChains),
+		limits:              limits,
 	}
 }
 
@@ -242,6 +244,10 @@ func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 	if body.Chain == "" {
 		body.Chain = "base"
 	}
+	if err := s.limits.ValidateWithdrawal(body.Amount); err != nil {
+		s.writeError(w, http.StatusBadRequest, err)
+		return
+	}
 	resp, err := s.wallet.RequestWithdrawal(r.Context(), user.ID, body.Currency, body.Amount, body.DestinationAddress, body.Chain)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err)
@@ -287,6 +293,19 @@ func (s *Server) handleXcashWebhook(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, err)
 		return
 	}
+
+	var payload struct {
+		Amount string `json:"amount"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		s.writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := s.limits.ValidateDeposit(payload.Amount); err != nil {
+		s.writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	headers := map[string]string{}
 	for _, name := range []string{"XC-Nonce", "XC-Timestamp", "XC-Signature"} {
 		headers[name] = r.Header.Get(name)

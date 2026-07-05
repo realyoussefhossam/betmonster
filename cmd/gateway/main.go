@@ -37,7 +37,16 @@ func main() {
 		}
 	}
 
-	server := gateway.NewServer(logger, walletClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains)
+	limits := gateway.Limits{
+		MinDeposit:      cfg.MinDeposit,
+		MaxDeposit:      cfg.MaxDeposit,
+		DailyDeposit:    cfg.DailyDeposit,
+		MinWithdrawal:   cfg.MinWithdrawal,
+		MaxWithdrawal:   cfg.MaxWithdrawal,
+		DailyWithdrawal: cfg.DailyWithdrawal,
+	}
+
+	server := gateway.NewServer(logger, walletClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains, limits)
 	logger.Info("gateway starting", slog.String("port", cfg.Port))
 	if err := http.ListenAndServe(":"+cfg.Port, server.Router()); err != nil {
 		logger.Error("gateway stopped", slog.String("error", err.Error()))

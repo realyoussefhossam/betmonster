@@ -12,7 +12,7 @@ import (
 
 func TestHealthHandler(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil")
+	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 

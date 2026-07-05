@@ -17,6 +17,12 @@ type Gateway struct {
 	RateLimitBurst      int
 	RateLimitBackend    string
 	RedisAddr           string
+	MinDeposit          string
+	MaxDeposit          string
+	DailyDeposit        string
+	MinWithdrawal       string
+	MaxWithdrawal       string
+	DailyWithdrawal     string
 }
 
 func LoadGateway() Gateway {
@@ -32,6 +38,12 @@ func LoadGateway() Gateway {
 		RateLimitBurst:      getEnvInt("RATE_LIMIT_BURST", 100),
 		RateLimitBackend:    getEnv("RATE_LIMIT_BACKEND", "memory"),
 		RedisAddr:           getEnv("REDIS_ADDR", "redis:6379"),
+		MinDeposit:          getEnv("MIN_DEPOSIT", ""),
+		MaxDeposit:          getEnv("MAX_DEPOSIT", ""),
+		DailyDeposit:        getEnv("DAILY_DEPOSIT", ""),
+		MinWithdrawal:       getEnv("MIN_WITHDRAWAL", ""),
+		MaxWithdrawal:       getEnv("MAX_WITHDRAWAL", ""),
+		DailyWithdrawal:     getEnv("DAILY_WITHDRAWAL", ""),
 	}
 }
 
