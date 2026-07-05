@@ -112,7 +112,8 @@ FIAT_CURRENCIES=USD,EUR,JPY,INR,CAD,CNY,IDR,KRW,PHP,RUB,MXN,PLN,TRY,VND,ARS,PEN,
 MANUAL_USD_RATES=
 
 # Optional: free forex API for USD-to-fiat rates.
-FOREX_API_URL=https://api.exchangerate-api.com/v4/latest/USD
+# Default uses ExchangeRate-API open access endpoint (no API key required).
+FOREX_API_URL=https://open.er-api.com/v6/latest/USD
 ```
 
 Update `scripts/init_env.sh` to emit these variables.
@@ -211,7 +212,7 @@ import (
     "github.com/shopspring/decimal"
 )
 
-const forexDefaultURL = "https://api.exchangerate-api.com/v4/latest/USD"
+const forexDefaultURL = "https://open.er-api.com/v6/latest/USD"
 
 // ForexProvider fetches USD-to-fiat rates.
 type ForexProvider struct {
