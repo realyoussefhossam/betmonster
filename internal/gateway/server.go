@@ -75,6 +75,7 @@ func splitTrim(s string) []string {
 func (s *Server) Router() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
+	mux.Handle("/metrics", server.MetricsHandler())
 	mux.HandleFunc("/api/wallet/supported", s.handleSupported)
 	mux.Handle("/api/wallet/balance", s.auth(http.HandlerFunc(s.handleBalance)))
 	mux.Handle("/api/wallet/transactions", s.auth(http.HandlerFunc(s.handleTransactions)))
@@ -83,7 +84,7 @@ func (s *Server) Router() http.Handler {
 	mux.Handle("/api/admin/withdrawals", s.auth(s.admin(http.HandlerFunc(s.handleListPendingWithdrawals))))
 	mux.Handle("/api/admin/withdrawals/review", s.auth(s.admin(http.HandlerFunc(s.handleReviewWithdrawal))))
 	mux.HandleFunc("/webhooks/xcash/deposit", s.handleXcashWebhook)
-	return server.RequestID(server.Logging(s.logger, s.cors(mux)))
+	return server.RequestID(server.Logging(s.logger, server.Metrics(s.cors(mux))))
 }
 
 func (s *Server) cors(next http.Handler) http.Handler {
