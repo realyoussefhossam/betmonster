@@ -53,6 +53,7 @@ export interface WithdrawalResponse {
 export interface SupportedOptionsResponse {
   currencies: string[];
   chains: string[];
+  pairs: string[];
 }
 
 export interface WithdrawalRequest {

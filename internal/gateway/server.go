@@ -232,9 +232,14 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSupported(w http.ResponseWriter, r *http.Request) {
+	pairs := make([]string, 0, len(s.supportedPairs))
+	for pair := range s.supportedPairs {
+		pairs = append(pairs, pair)
+	}
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"currencies": s.supportedCurrencies,
 		"chains":     s.supportedChains,
+		"pairs":      pairs,
 	})
 }
 

@@ -17,6 +17,13 @@ export default function WithdrawPage() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const validChainsForCurrency = (currency: string) => {
+    if (!options) return [];
+    return options.chains.filter((chain) =>
+      options.pairs.includes(`${currency}:${chain}`),
+    );
+  };
+
   useEffect(() => {
     async function loadOptions() {
       const res = await goApiClient.getSupportedOptions();
@@ -24,12 +31,25 @@ export default function WithdrawPage() {
         setOptionsError(res.error);
       } else if (res.data) {
         setOptions(res.data);
-        setCurrency(res.data.currencies[0] ?? "");
-        setChain(res.data.chains[0] ?? "");
+        const firstCurrency = res.data.currencies[0] ?? "";
+        setCurrency(firstCurrency);
+        setChain(
+          res.data.chains.find((chain) =>
+            res.data.pairs.includes(`${firstCurrency}:${chain}`),
+          ) ?? res.data.chains[0] ?? "",
+        );
       }
     }
     loadOptions();
   }, []);
+
+  useEffect(() => {
+    if (!options || !currency) return;
+    const valid = validChainsForCurrency(currency);
+    if (!valid.includes(chain)) {
+      setChain(valid[0] ?? "");
+    }
+  }, [currency, options]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,10 +106,10 @@ export default function WithdrawPage() {
             id="chain"
             value={chain}
             onChange={(e) => setChain(e.target.value)}
-            disabled={!options || options.chains.length === 0}
+            disabled={!options || validChainsForCurrency(currency).length === 0}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {options?.chains.map((c) => (
+            {validChainsForCurrency(currency).map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
