@@ -87,7 +87,7 @@ func (s *GRPCServer) ListTransactions(ctx context.Context, req *pb.ListTransacti
 		}
 		out[i] = &pb.Transaction{
 			Id: t.ID, UserId: t.UserID, WalletId: t.WalletID, Type: t.Type,
-			Amount: t.Amount, BalanceBefore: t.BalanceBefore, BalanceAfter: t.BalanceAfter,
+			Currency: t.Currency, Amount: t.Amount, BalanceBefore: t.BalanceBefore, BalanceAfter: t.BalanceAfter,
 			Status: t.Status, ReferenceId: t.ReferenceID, Metadata: t.Metadata,
 			CreatedAt: t.CreatedAt.Format(time.RFC3339),
 			FiatValue: fiatValue,

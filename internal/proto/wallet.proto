@@ -21,14 +21,15 @@ message Transaction {
   string user_id = 2;
   string wallet_id = 3;
   string type = 4;
-  string amount = 5;
-  string balance_before = 6;
-  string balance_after = 7;
-  string status = 8;
-  string reference_id = 9;
-  string metadata = 10;
-  string created_at = 11;
-  string fiat_value = 12;
+  string currency = 5;
+  string amount = 6;
+  string balance_before = 7;
+  string balance_after = 8;
+  string status = 9;
+  string reference_id = 10;
+  string metadata = 11;
+  string created_at = 12;
+  string fiat_value = 13;
 }
 
 message ListTransactionsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; string fiat_currency = 4; }

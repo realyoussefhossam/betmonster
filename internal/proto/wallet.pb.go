@@ -155,14 +155,15 @@ type Transaction struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	WalletId      string                 `protobuf:"bytes,3,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`
 	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
-	Amount        string                 `protobuf:"bytes,5,opt,name=amount,proto3" json:"amount,omitempty"`
-	BalanceBefore string                 `protobuf:"bytes,6,opt,name=balance_before,json=balanceBefore,proto3" json:"balance_before,omitempty"`
-	BalanceAfter  string                 `protobuf:"bytes,7,opt,name=balance_after,json=balanceAfter,proto3" json:"balance_after,omitempty"`
-	Status        string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`
-	ReferenceId   string                 `protobuf:"bytes,9,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
-	Metadata      string                 `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	FiatValue     string                 `protobuf:"bytes,12,opt,name=fiat_value,json=fiatValue,proto3" json:"fiat_value,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Amount        string                 `protobuf:"bytes,6,opt,name=amount,proto3" json:"amount,omitempty"`
+	BalanceBefore string                 `protobuf:"bytes,7,opt,name=balance_before,json=balanceBefore,proto3" json:"balance_before,omitempty"`
+	BalanceAfter  string                 `protobuf:"bytes,8,opt,name=balance_after,json=balanceAfter,proto3" json:"balance_after,omitempty"`
+	Status        string                 `protobuf:"bytes,9,opt,name=status,proto3" json:"status,omitempty"`
+	ReferenceId   string                 `protobuf:"bytes,10,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
+	Metadata      string                 `protobuf:"bytes,11,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	FiatValue     string                 `protobuf:"bytes,13,opt,name=fiat_value,json=fiatValue,proto3" json:"fiat_value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -221,6 +222,13 @@ func (x *Transaction) GetWalletId() string {
 func (x *Transaction) GetType() string {
 	if x != nil {
 		return x.Type
+	}
+	return ""
+}
+
+func (x *Transaction) GetCurrency() string {
+	if x != nil {
+		return x.Currency
 	}
 	return ""
 }
@@ -1163,23 +1171,24 @@ const file_internal_proto_wallet_proto_rawDesc = "" +
 	"\abalance\x18\x02 \x01(\tR\abalance\x12#\n" +
 	"\rfiat_currency\x18\x03 \x01(\tR\ffiatCurrency\x12\x1d\n" +
 	"\n" +
-	"fiat_value\x18\x04 \x01(\tR\tfiatValue\"\xe0\x02\n" +
+	"fiat_value\x18\x04 \x01(\tR\tfiatValue\"\xfc\x02\n" +
 	"\vTransaction\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1b\n" +
 	"\twallet_id\x18\x03 \x01(\tR\bwalletId\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\x12\x16\n" +
-	"\x06amount\x18\x05 \x01(\tR\x06amount\x12%\n" +
-	"\x0ebalance_before\x18\x06 \x01(\tR\rbalanceBefore\x12#\n" +
-	"\rbalance_after\x18\a \x01(\tR\fbalanceAfter\x12\x16\n" +
-	"\x06status\x18\b \x01(\tR\x06status\x12!\n" +
-	"\freference_id\x18\t \x01(\tR\vreferenceId\x12\x1a\n" +
-	"\bmetadata\x18\n" +
-	" \x01(\tR\bmetadata\x12\x1d\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06amount\x18\x06 \x01(\tR\x06amount\x12%\n" +
+	"\x0ebalance_before\x18\a \x01(\tR\rbalanceBefore\x12#\n" +
+	"\rbalance_after\x18\b \x01(\tR\fbalanceAfter\x12\x16\n" +
+	"\x06status\x18\t \x01(\tR\x06status\x12!\n" +
+	"\freference_id\x18\n" +
+	" \x01(\tR\vreferenceId\x12\x1a\n" +
+	"\bmetadata\x18\v \x01(\tR\bmetadata\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\f \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"fiat_value\x18\f \x01(\tR\tfiatValue\"\x88\x01\n" +
+	"fiat_value\x18\r \x01(\tR\tfiatValue\"\x88\x01\n" +
 	"\x17ListTransactionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
