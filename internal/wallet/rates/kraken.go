@@ -38,6 +38,8 @@ func NewKraken(opts ...KrakenOption) *Kraken {
 func (k *Kraken) Name() string { return "kraken" }
 
 func (k *Kraken) GetRate(ctx context.Context, fiat, crypto string) (string, error) {
+	fiat = strings.ToUpper(fiat)
+	crypto = strings.ToUpper(crypto)
 	if fiat == "USD" && isStablecoin(crypto) {
 		return "1.00", nil
 	}
