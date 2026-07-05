@@ -26,8 +26,10 @@ GATEWAY_PORT=8080
 # JWKS_URL=http://localhost:3000/api/auth/jwks
 WALLET_SERVICE_ADDR=localhost:50051
 ADMIN_USER_IDS=
-SUPPORTED_CURRENCIES=USDT
-SUPPORTED_CHAINS=anvil
+# Local xcash only activates anvil with USDT, USDC, and ETH. Keep this in sync
+# with scripts/xcash_bootstrap.py. For production, copy the full pair list from
+# .env.example and remove anvil:*.
+SUPPORTED_PAIRS=USDT:anvil,USDC:anvil,ETH:anvil
 
 WALLET_PORT=8081
 DATABASE_URL=postgres://wallet:wallet@localhost:5433/wallet?sslmode=disable

@@ -60,19 +60,25 @@ BetMonster is an open-source, self-hosted sportsbook/casino platform. The existi
 
 | Asset | Networks | v1 status | Notes |
 |-------|----------|-----------|-------|
-| USDT | ERC20, TRC20, BEP20, Base, other EVM | **Supported** | Default stablecoin. |
-| USDC | ERC20, TRC20, BEP20, Base, other EVM | **Supported** | Alternative stablecoin. |
-| ETH | Ethereum, Base, other EVM | **Supported** | Native EVM asset. |
-| BETM | ERC20, other EVM | **Native token** (optional) | Project-native token used for gaming features and rewards. Operators can rename the ticker. |
-| BNB | BNB Smart Chain | **Supported** | EVM-compatible chain. |
-| TRX | Tron Network | **Supported** | Very low fees. |
+| USDT | ERC20, TRC20, BEP20, Polygon | **Supported** | Default stablecoin. |
+| USDC | ERC20, BEP20, Polygon, Base, Arbitrum One | **Supported** | Alternative stablecoin. |
+| ETH | Ethereum, BNB Smart Chain, Base | **Supported** | Native EVM asset. |
+| BNB | BNB Smart Chain | **Supported** | Native BSC asset. |
+| TRX | Tron Network | **Supported** | Native Tron asset. |
+| POL | Polygon, Ethereum | **Supported** | Polygon native token. |
+| DAI | Ethereum | **Supported** | Stablecoin. |
+| SHIB | Ethereum | **Supported** | Meme token. |
+| BUSD | BNB Smart Chain | **Supported** | Binance stablecoin. |
+| BETM | ERC20 | **Native token** (optional) | Project-native token used for gaming features and rewards. Operators can rename the ticker. |
 | BTC | Bitcoin Network | Future | Non-EVM / non-Tron chain. |
 | SOL | Solana | Future | Non-EVM / non-Tron chain. |
 | LTC | Litecoin | Future | Non-EVM / non-Tron chain. |
 | DOGE | Dogecoin Network | Future | Non-EVM / non-Tron chain. |
 | XRP | XRP Ledger | Future | Non-EVM / non-Tron chain; requires destination tags. |
+| AVAX | Avalanche C-Chain | Future | xcash does not support Avalanche in v1. |
+| TON / GRAM | TON | Future | Non-EVM / non-Tron chain; requires memo/tag. |
 
-v1 operators can enable any EVM or Tron asset/chain that xcash supports by updating `SUPPORTED_CURRENCIES` and `SUPPORTED_CHAINS`. BTC, SOL, LTC, DOGE, and XRP require non-EVM pipeline work and are out of scope for v1.
+v1 operators declare supported currency-chain combinations via `SUPPORTED_PAIRS` (e.g., `USDT:ethereum`, `BNB:bsc`, `TRX:tron`). The gateway and wallet derive the currency and chain lists from the pairs and reject any unsupported combination. BTC, SOL, LTC, DOGE, XRP, AVAX, and TON require non-EVM/non-Tron pipeline work and are out of scope for v1.
 
 ## 6. Deposit Flow
 
