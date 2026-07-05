@@ -33,6 +33,7 @@ export interface Transaction {
   userId: string;
   walletId: string;
   type: string;
+  currency: string;
   amount: string;
   balanceBefore: string;
   balanceAfter: string;

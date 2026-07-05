@@ -28,7 +28,7 @@ export function WalletCard({
             </div>
             {fiatValue && fiatCurrency && (
               <div className="text-sm text-muted-foreground">
-                ≈ ${fiatValue} {fiatCurrency}
+                ≈ {fiatValue} {fiatCurrency}
               </div>
             )}
           </>
