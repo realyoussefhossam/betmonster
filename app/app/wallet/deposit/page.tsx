@@ -45,19 +45,14 @@ export default function DepositPage() {
     loadOptions();
   }, []);
 
-  useEffect(() => {
-    if (!options || !currency) return;
-    const valid = validChainsForCurrency(currency);
-    if (!valid.includes(chain)) {
-      setChain(valid[0] ?? "");
-    }
-  }, [currency, options]);
+  const validChains = validChainsForCurrency(currency);
+  const currentChain = validChains.includes(chain) ? chain : validChains[0] ?? "";
 
   async function loadAddress() {
-    if (!currency || !chain) return;
+    if (!currency || !currentChain) return;
     setLoading(true);
     setError(null);
-    const res = await goApiClient.getDepositAddress(currency, chain);
+    const res = await goApiClient.getDepositAddress(currency, currentChain);
     if (res.error) {
       setError(res.error);
     } else if (res.data) {
@@ -75,7 +70,12 @@ export default function DepositPage() {
           <select
             id="currency"
             value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
+            onChange={(e) => {
+              const nextCurrency = e.target.value;
+              setCurrency(nextCurrency);
+              const nextValid = validChainsForCurrency(nextCurrency);
+              setChain(nextValid[0] ?? "");
+            }}
             disabled={!options || options.currencies.length === 0}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -90,19 +90,19 @@ export default function DepositPage() {
           <Label htmlFor="chain">Chain</Label>
           <select
             id="chain"
-            value={chain}
+            value={currentChain}
             onChange={(e) => setChain(e.target.value)}
-            disabled={!options || validChainsForCurrency(currency).length === 0}
+            disabled={!options || validChains.length === 0}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {validChainsForCurrency(currency).map((c) => (
+            {validChains.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             )) ?? <option value="">Loading...</option>}
           </select>
         </div>
-        <Button onClick={loadAddress} disabled={loading || !currency || !chain}>
+        <Button onClick={loadAddress} disabled={loading || !currency || !currentChain}>
           {loading ? "Loading..." : "Get Address"}
         </Button>
       </div>

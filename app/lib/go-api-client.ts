@@ -19,6 +19,13 @@ export interface UserProfile {
 export interface BalanceResponse {
   currency: string;
   balance: string;
+  fiat_currency?: string;
+  fiat_value?: string;
+}
+
+export interface RatesResponse {
+  fiat_currency: string;
+  rates: Record<string, string>;
 }
 
 export interface Transaction {
@@ -33,6 +40,7 @@ export interface Transaction {
   referenceId: string;
   metadata: string;
   createdAt: string;
+  fiat_value?: string;
 }
 
 export interface TransactionsResponse {
@@ -153,6 +161,10 @@ class GoApiClient {
 
   async getSupportedOptions(): Promise<ApiResponse<SupportedOptionsResponse>> {
     return this.request("/api/wallet/supported", { method: "GET" });
+  }
+
+  async getRates(): Promise<ApiResponse<RatesResponse>> {
+    return this.request("/api/wallet/rates", { method: "GET" });
   }
 
   async getBalance(currency: string = "USDT"): Promise<ApiResponse<BalanceResponse>> {

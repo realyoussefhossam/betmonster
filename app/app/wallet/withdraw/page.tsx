@@ -44,17 +44,12 @@ export default function WithdrawPage() {
     loadOptions();
   }, []);
 
-  useEffect(() => {
-    if (!options || !currency) return;
-    const valid = validChainsForCurrency(currency);
-    if (!valid.includes(chain)) {
-      setChain(valid[0] ?? "");
-    }
-  }, [currency, options]);
+  const validChains = validChainsForCurrency(currency);
+  const currentChain = validChains.includes(chain) ? chain : validChains[0] ?? "";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!currency || !chain) return;
+    if (!currency || !currentChain) return;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -62,7 +57,7 @@ export default function WithdrawPage() {
       currency,
       amount,
       destinationAddress,
-      chain,
+      chain: currentChain,
     });
     if (res.error) {
       setError(res.error);
@@ -81,7 +76,12 @@ export default function WithdrawPage() {
           <select
             id="currency"
             value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
+            onChange={(e) => {
+              const nextCurrency = e.target.value;
+              setCurrency(nextCurrency);
+              const nextValid = validChainsForCurrency(nextCurrency);
+              setChain(nextValid[0] ?? "");
+            }}
             disabled={!options || options.currencies.length === 0}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -105,12 +105,12 @@ export default function WithdrawPage() {
           <Label htmlFor="chain">Chain</Label>
           <select
             id="chain"
-            value={chain}
+            value={currentChain}
             onChange={(e) => setChain(e.target.value)}
-            disabled={!options || validChainsForCurrency(currency).length === 0}
+            disabled={!options || validChains.length === 0}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {validChainsForCurrency(currency).map((c) => (
+            {validChains.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
@@ -126,7 +126,7 @@ export default function WithdrawPage() {
             placeholder="0x..."
           />
         </div>
-        <Button type="submit" disabled={loading || !currency || !chain}>
+        <Button type="submit" disabled={loading || !currency || !currentChain}>
           {loading ? "Submitting..." : "Request Withdrawal"}
         </Button>
       </form>

@@ -39,7 +39,8 @@ export default function WalletPage() {
         );
         const loadedBalances = balanceResults
           .filter((res) => res.data)
-          .map((res) => res.data!);
+          .map((res) => res.data!)
+          .filter((b) => b.balance !== "0" && b.balance !== "0.00000000");
         setBalances(loadedBalances);
       }
 
@@ -64,6 +65,8 @@ export default function WalletPage() {
               key={b.currency}
               currency={b.currency}
               balance={b.balance}
+              fiatValue={b.fiat_value}
+              fiatCurrency={b.fiat_currency}
               loading={false}
             />
           ))
@@ -96,6 +99,11 @@ export default function WalletPage() {
                 </div>
                 <span className="text-right">
                   {tx.amount} {tx.status}
+                  {tx.fiat_value && (
+                    <div className="text-xs text-muted-foreground">
+                      ≈ ${tx.fiat_value} USD
+                    </div>
+                  )}
                 </span>
               </li>
             ))}
