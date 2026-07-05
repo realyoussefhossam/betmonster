@@ -2,23 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { goApiClient } from "@/lib/go-api-client";
+import { useFiatCurrency } from "@/components/fiat-selector";
 
 export function RatesFooter() {
+  const { fiat } = useFiatCurrency();
   const [rates, setRates] = useState<Record<string, string>>({});
-  const [fiatCurrency, setFiatCurrency] = useState<string>("USD");
 
   useEffect(() => {
     async function load() {
-      const res = await goApiClient.getRates();
+      const res = await goApiClient.getRates(fiat);
       if (res.data) {
         setRates(res.data.rates);
-        setFiatCurrency(res.data.fiat_currency);
       }
     }
     load();
     const id = setInterval(load, 60000);
     return () => clearInterval(id);
-  }, []);
+  }, [fiat]);
 
   const entries = Object.entries(rates);
   if (entries.length === 0) return null;
@@ -28,7 +28,7 @@ export function RatesFooter() {
       <div className="container mx-auto text-center text-sm text-muted-foreground">
         {entries.map(([currency, value], i) => (
           <span key={currency}>
-            {currency} ${value} {fiatCurrency}
+            {currency} {value} {fiat}
             {i < entries.length - 1 && " | "}
           </span>
         ))}

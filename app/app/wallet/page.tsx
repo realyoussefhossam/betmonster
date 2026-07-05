@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { WalletCard } from "@/components/wallet-card";
 import { Button } from "@/components/ui/button";
+import { FiatSelector, useFiatCurrency } from "@/components/fiat-selector";
 import {
   goApiClient,
   BalanceResponse,
@@ -26,12 +27,13 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
+  const { fiat, setFiat } = useFiatCurrency();
 
   useEffect(() => {
     async function load() {
       const [supportedRes, txRes] = await Promise.all([
         goApiClient.getSupportedOptions(),
-        goApiClient.getTransactions(),
+        goApiClient.getTransactions(fiat),
       ]);
 
       if (supportedRes.error) {
@@ -39,7 +41,7 @@ export default function WalletPage() {
       } else if (supportedRes.data?.currencies) {
         const balanceResults = await Promise.all(
           supportedRes.data.currencies.map((currency) =>
-            goApiClient.getBalance(currency),
+            goApiClient.getBalance(currency, fiat),
           ),
         );
         const loadedBalances = balanceResults
@@ -54,7 +56,7 @@ export default function WalletPage() {
       setLoading(false);
     }
     load();
-  }, [showZero]);
+  }, [fiat, showZero]);
 
   const visibleBalances = balances.filter(
     (b) => showZero || !isZeroBalance(b.balance),
@@ -63,7 +65,10 @@ export default function WalletPage() {
 
   return (
     <div className="container mx-auto max-w-2xl py-8 space-y-6">
-      <h1 className="text-3xl font-bold">Wallet</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Wallet</h1>
+        <FiatSelector value={fiat} onChange={setFiat} />
+      </div>
       {error && <p className="text-red-500">{error}</p>}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Balances</h2>
@@ -126,7 +131,7 @@ export default function WalletPage() {
                   {tx.amount} {tx.status}
                   {tx.fiat_value && (
                     <div className="text-xs text-muted-foreground">
-                      ≈ ${tx.fiat_value} USD
+                      ≈ {tx.fiat_value} {tx.fiat_currency || fiat}
                     </div>
                   )}
                 </span>
