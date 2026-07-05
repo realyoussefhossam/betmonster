@@ -19,8 +19,8 @@ export interface UserProfile {
 export interface BalanceResponse {
   currency: string;
   balance: string;
-  fiat_currency?: string;
-  fiat_value?: string;
+  fiatCurrency?: string;
+  fiatValue?: string;
 }
 
 export interface RatesResponse {
@@ -40,7 +40,7 @@ export interface Transaction {
   referenceId: string;
   metadata: string;
   createdAt: string;
-  fiat_value?: string;
+  fiatValue?: string;
 }
 
 export interface TransactionsResponse {
