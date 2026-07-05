@@ -74,6 +74,7 @@ func TestRateLimitRedisBackend(t *testing.T) {
 	defer srv.Close()
 
 	limiter := NewRateLimiter("redis", srv.Addr(), 2, 2)
+	defer limiter.Close()
 	assert.NoError(t, limiter.Ping(context.Background()))
 
 	handler := limiter.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +97,7 @@ func TestRateLimitRedisBackendUserIsolation(t *testing.T) {
 	defer srv.Close()
 
 	limiter := NewRateLimiter("redis", srv.Addr(), 1, 1)
+	defer limiter.Close()
 	handler := limiter.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

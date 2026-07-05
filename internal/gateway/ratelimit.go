@@ -156,11 +156,10 @@ func (rl *RateLimiter) allowMemory(ctx context.Context, key string) bool {
 func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
 	rl.mu.RLock()
 	lim, ok := rl.limiters[key]
+	rl.mu.RUnlock()
 	if ok {
-		defer rl.mu.RUnlock()
 		return lim
 	}
-	rl.mu.RUnlock()
 
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -210,7 +209,7 @@ func (rl *RateLimiter) allowRedis(ctx context.Context, key string) (bool, error)
 		return 0
 	`
 
-	res, err := rl.redis.Eval(ctx, lua, []string{key}, now, int64(rl.rate), rl.burst).Result()
+	res, err := rl.redis.Eval(ctx, lua, []string{key}, now, float64(rl.rate), rl.burst).Result()
 	if err != nil {
 		return false, err
 	}
