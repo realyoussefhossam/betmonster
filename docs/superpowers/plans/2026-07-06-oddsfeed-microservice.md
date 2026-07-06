@@ -580,11 +580,357 @@ type Store interface {
 
 - [ ] **Step 2: Implement PGStore**
 
-Implement `internal/oddsfeed/pgstore.go` with idempotent upserts for all entities. Use `uuid.MustParse` for foreign key references. Follow the same SQL pattern as the wallet `pgstore.go`. Include `ListEvents` with optional filters, and use `ListEvents(..., "live", ...)` for `ListLiveScores`.
+Create `internal/oddsfeed/pgstore.go`:
+
+```go
+package oddsfeed
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"github.com/google/uuid"
+)
+
+type PGStore struct {
+	db *sql.DB
+}
+
+func NewPGStore(db *sql.DB) *PGStore { return &PGStore{db: db} }
+
+func (s *PGStore) UpsertSport(ctx context.Context, sp Sport) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO sports (provider, provider_sport_id, slug, name)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (provider, provider_sport_id) DO UPDATE SET
+			slug = EXCLUDED.slug,
+			name = EXCLUDED.name,
+			updated_at = now()
+		RETURNING id
+	`, sp.Provider, sp.ProviderSportID, sp.Slug, sp.Name).Scan(&id)
+	return id, err
+}
+
+func (s *PGStore) UpsertLeague(ctx context.Context, l League) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO leagues (provider, provider_league_id, sport_id, name, country)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (provider, provider_league_id) DO UPDATE SET
+			sport_id = EXCLUDED.sport_id,
+			name = EXCLUDED.name,
+			country = EXCLUDED.country,
+			updated_at = now()
+		RETURNING id
+	`, l.Provider, l.ProviderLeagueID, uuid.MustParse(l.SportID), l.Name, l.Country).Scan(&id)
+	return id, err
+}
+
+func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
+	var id string
+	scoreUpdated := sql.NullTime{Time: e.ScoreUpdatedAt, Valid: !e.ScoreUpdatedAt.IsZero()}
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO events (provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		ON CONFLICT (provider, provider_event_id) DO UPDATE SET
+			league_id = EXCLUDED.league_id,
+			sport_id = EXCLUDED.sport_id,
+			home_participant = EXCLUDED.home_participant,
+			away_participant = EXCLUDED.away_participant,
+			starts_at = EXCLUDED.starts_at,
+			status = EXCLUDED.status,
+			home_score = EXCLUDED.home_score,
+			away_score = EXCLUDED.away_score,
+			score_updated_at = EXCLUDED.score_updated_at,
+			metadata = EXCLUDED.metadata,
+			updated_at = now()
+		RETURNING id
+	`, e.Provider, e.ProviderEventID, uuid.MustParse(e.LeagueID), uuid.MustParse(e.SportID), e.HomeParticipant, e.AwayParticipant, e.StartsAt, e.Status, e.HomeScore, e.AwayScore, scoreUpdated, e.Metadata).Scan(&id)
+	return id, err
+}
+
+func (s *PGStore) UpsertMarket(ctx context.Context, m Market) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO markets (provider, provider_market_id, event_id, type, name, line, status, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (provider, provider_market_id) DO UPDATE SET
+			event_id = EXCLUDED.event_id,
+			type = EXCLUDED.type,
+			name = EXCLUDED.name,
+			line = EXCLUDED.line,
+			status = EXCLUDED.status,
+			metadata = EXCLUDED.metadata,
+			updated_at = now()
+		RETURNING id
+	`, m.Provider, m.ProviderMarketID, uuid.MustParse(m.EventID), m.Type, m.Name, m.Line, m.Status, m.Metadata).Scan(&id)
+	return id, err
+}
+
+func (s *PGStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO outcomes (provider, provider_outcome_id, market_id, name, odds, status, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (provider, provider_outcome_id) DO UPDATE SET
+			market_id = EXCLUDED.market_id,
+			name = EXCLUDED.name,
+			odds = EXCLUDED.odds,
+			status = EXCLUDED.status,
+			metadata = EXCLUDED.metadata,
+			updated_at = now()
+		RETURNING id
+	`, o.Provider, o.ProviderOutcomeID, uuid.MustParse(o.MarketID), o.Name, o.Odds, o.Status, o.Metadata).Scan(&id)
+	return id, err
+}
+
+func (s *PGStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) {
+	if page < 1 { page = 1 }
+	if pageSize < 1 { pageSize = 20 }
+	offset := (page - 1) * pageSize
+	rows, err := s.db.QueryContext(ctx, `SELECT id, provider, provider_sport_id, slug, name, created_at, updated_at FROM sports ORDER BY name LIMIT $1 OFFSET $2`, pageSize, offset)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []Sport
+	for rows.Next() {
+		var sp Sport
+		if err := rows.Scan(&sp.ID, &sp.Provider, &sp.ProviderSportID, &sp.Slug, &sp.Name, &sp.CreatedAt, &sp.UpdatedAt); err != nil { return nil, err }
+		out = append(out, sp)
+	}
+	return out, rows.Err()
+}
+
+func (s *PGStore) ListLeagues(ctx context.Context, sportID string, page, pageSize int) ([]League, error) {
+	if page < 1 { page = 1 }
+	if pageSize < 1 { pageSize = 20 }
+	offset := (page - 1) * pageSize
+	var rows *sql.Rows
+	var err error
+	if sportID != "" {
+		rows, err = s.db.QueryContext(ctx, `SELECT id, provider, provider_league_id, sport_id, name, country, created_at, updated_at FROM leagues WHERE sport_id = $1 ORDER BY name LIMIT $2 OFFSET $3`, uuid.MustParse(sportID), pageSize, offset)
+	} else {
+		rows, err = s.db.QueryContext(ctx, `SELECT id, provider, provider_league_id, sport_id, name, country, created_at, updated_at FROM leagues ORDER BY name LIMIT $1 OFFSET $2`, pageSize, offset)
+	}
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []League
+	for rows.Next() {
+		var l League
+		if err := rows.Scan(&l.ID, &l.Provider, &l.ProviderLeagueID, &l.SportID, &l.Name, &l.Country, &l.CreatedAt, &l.UpdatedAt); err != nil { return nil, err }
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+func (s *PGStore) ListEvents(ctx context.Context, sportID, leagueID, status string, page, pageSize int) ([]Event, error) {
+	if page < 1 { page = 1 }
+	if pageSize < 1 { pageSize = 20 }
+	offset := (page - 1) * pageSize
+	query := `SELECT id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata, created_at, updated_at FROM events WHERE 1=1`
+	args := []interface{}{}
+	argCount := 0
+	if sportID != "" {
+		argCount++; args = append(args, uuid.MustParse(sportID))
+		query += fmt.Sprintf(" AND sport_id = $%d", argCount)
+	}
+	if leagueID != "" {
+		argCount++; args = append(args, uuid.MustParse(leagueID))
+		query += fmt.Sprintf(" AND league_id = $%d", argCount)
+	}
+	if status != "" {
+		argCount++; args = append(args, status)
+		query += fmt.Sprintf(" AND status = $%d", argCount)
+	}
+	argCount++; args = append(args, pageSize)
+	query += fmt.Sprintf(" ORDER BY starts_at DESC LIMIT $%d", argCount)
+	argCount++; args = append(args, offset)
+	query += fmt.Sprintf(" OFFSET $%d", argCount)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []Event
+	for rows.Next() {
+		var e Event
+		var scoreUpdated sql.NullTime
+		if err := rows.Scan(&e.ID, &e.Provider, &e.ProviderEventID, &e.LeagueID, &e.SportID, &e.HomeParticipant, &e.AwayParticipant, &e.StartsAt, &e.Status, &e.HomeScore, &e.AwayScore, &scoreUpdated, &e.Metadata, &e.CreatedAt, &e.UpdatedAt); err != nil { return nil, err }
+		if scoreUpdated.Valid { e.ScoreUpdatedAt = scoreUpdated.Time }
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (s *PGStore) GetEvent(ctx context.Context, id string) (*Event, error) {
+	var e Event
+	var scoreUpdated sql.NullTime
+	err := s.db.QueryRowContext(ctx, `SELECT id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata, created_at, updated_at FROM events WHERE id = $1`, uuid.MustParse(id)).Scan(
+		&e.ID, &e.Provider, &e.ProviderEventID, &e.LeagueID, &e.SportID, &e.HomeParticipant, &e.AwayParticipant, &e.StartsAt, &e.Status, &e.HomeScore, &e.AwayScore, &scoreUpdated, &e.Metadata, &e.CreatedAt, &e.UpdatedAt,
+	)
+	if err == sql.ErrNoRows { return nil, nil }
+	if err != nil { return nil, err }
+	if scoreUpdated.Valid { e.ScoreUpdatedAt = scoreUpdated.Time }
+	return &e, nil
+}
+
+func (s *PGStore) ListMarkets(ctx context.Context, eventID, status string, page, pageSize int) ([]Market, error) {
+	if page < 1 { page = 1 }
+	if pageSize < 1 { pageSize = 20 }
+	offset := (page - 1) * pageSize
+	query := `SELECT id, provider, provider_market_id, event_id, type, name, line, status, metadata, created_at, updated_at FROM markets WHERE event_id = $1`
+	args := []interface{}{uuid.MustParse(eventID)}
+	if status != "" {
+		args = append(args, status)
+		query += fmt.Sprintf(" AND status = $%d", len(args))
+	}
+	args = append(args, pageSize, offset)
+	query += fmt.Sprintf(" ORDER BY name LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []Market
+	for rows.Next() {
+		var m Market
+		if err := rows.Scan(&m.ID, &m.Provider, &m.ProviderMarketID, &m.EventID, &m.Type, &m.Name, &m.Line, &m.Status, &m.Metadata, &m.CreatedAt, &m.UpdatedAt); err != nil { return nil, err }
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (s *PGStore) ListOutcomes(ctx context.Context, marketID, status string, page, pageSize int) ([]Outcome, error) {
+	if page < 1 { page = 1 }
+	if pageSize < 1 { pageSize = 20 }
+	offset := (page - 1) * pageSize
+	query := `SELECT id, provider, provider_outcome_id, market_id, name, odds, status, metadata, created_at, updated_at FROM outcomes WHERE market_id = $1`
+	args := []interface{}{uuid.MustParse(marketID)}
+	if status != "" {
+		args = append(args, status)
+		query += fmt.Sprintf(" AND status = $%d", len(args))
+	}
+	args = append(args, pageSize, offset)
+	query += fmt.Sprintf(" ORDER BY name LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []Outcome
+	for rows.Next() {
+		var o Outcome
+		if err := rows.Scan(&o.ID, &o.Provider, &o.ProviderOutcomeID, &o.MarketID, &o.Name, &o.Odds, &o.Status, &o.Metadata, &o.CreatedAt, &o.UpdatedAt); err != nil { return nil, err }
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+func (s *PGStore) ListLiveScores(ctx context.Context, sportID, leagueID string, page, pageSize int) ([]Event, error) {
+	return s.ListEvents(ctx, sportID, leagueID, "live", page, pageSize)
+}
+```
 
 - [ ] **Step 3: Write store tests**
 
-Use a local Postgres test database on `localhost:5433`. Run migrations, then test upsert round-trip and list filters. Follow the wallet `store_test.go` pattern.
+Create `internal/oddsfeed/store_test.go`:
+
+```go
+package oddsfeed
+
+import (
+	"context"
+	"database/sql"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/jackc/pgx/v5/stdlib"
+)
+
+func testDB(t *testing.T) *sql.DB {
+	t.Helper()
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		url = "postgres://wallet:wallet@localhost:5433/oddsfeed?sslmode=disable"
+	}
+	db, err := sql.Open("pgx", url)
+	if err != nil { t.Fatalf("open db: %v", err) }
+	if err := db.Ping(); err != nil { t.Fatalf("ping db: %v", err) }
+	if err := runTestMigrations(url); err != nil { t.Fatalf("migrations: %v", err) }
+	return db
+}
+
+func runTestMigrations(databaseURL string) error {
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil { return err }
+	defer db.Close()
+	driver, err := pgx.WithInstance(db, &pgx.Config{})
+	if err != nil { return err }
+	m, err := migrate.NewWithDatabaseInstance("file://internal/oddsfeed/migrations", "pgx", driver)
+	if err != nil { return err }
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange { return err }
+	return nil
+}
+
+func cleanTables(t *testing.T, db *sql.DB) {
+	t.Helper()
+	_, err := db.Exec(`TRUNCATE odds_snapshots, outcomes, markets, events, leagues, sports RESTART IDENTITY CASCADE`)
+	if err != nil { t.Fatalf("truncate: %v", err) }
+}
+
+func TestPGStoreUpsertAndList(t *testing.T) {
+	db := testDB(t)
+	defer db.Close()
+	cleanTables(t, db)
+	store := NewPGStore(db)
+	ctx := context.Background()
+
+	sportID, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "soccer", Name: "Soccer"})
+	if err != nil { t.Fatalf("upsert sport: %v", err) }
+
+	leagueID, err := store.UpsertLeague(ctx, League{Provider: "mock", ProviderLeagueID: "lg-1", SportID: sportID, Name: "League A", Country: "A"})
+	if err != nil { t.Fatalf("upsert league: %v", err) }
+
+	eventID, err := store.UpsertEvent(ctx, Event{
+		Provider: "mock", ProviderEventID: "ev-1", LeagueID: leagueID, SportID: sportID,
+		HomeParticipant: "A", AwayParticipant: "B", StartsAt: time.Now().Add(time.Hour), Status: "upcoming",
+	})
+	if err != nil { t.Fatalf("upsert event: %v", err) }
+
+	marketID, err := store.UpsertMarket(ctx, Market{Provider: "mock", ProviderMarketID: "mk-1", EventID: eventID, Type: "1x2", Name: "Result", Status: "active"})
+	if err != nil { t.Fatalf("upsert market: %v", err) }
+
+	_, err = store.UpsertOutcome(ctx, Outcome{Provider: "mock", ProviderOutcomeID: "oc-1", MarketID: marketID, Name: "A", Odds: "2.00", Status: "active"})
+	if err != nil { t.Fatalf("upsert outcome: %v", err) }
+
+	sports, err := store.ListSports(ctx, 1, 10)
+	if err != nil { t.Fatalf("list sports: %v", err) }
+	if len(sports) != 1 { t.Fatalf("expected 1 sport, got %d", len(sports)) }
+
+	events, err := store.ListEvents(ctx, sportID, leagueID, "", 1, 10)
+	if err != nil { t.Fatalf("list events: %v", err) }
+	if len(events) != 1 { t.Fatalf("expected 1 event, got %d", len(events)) }
+
+	markets, err := store.ListMarkets(ctx, eventID, "", 1, 10)
+	if err != nil { t.Fatalf("list markets: %v", err) }
+	if len(markets) != 1 { t.Fatalf("expected 1 market, got %d", len(markets)) }
+}
+
+func TestPGStoreIdempotentUpsert(t *testing.T) {
+	db := testDB(t)
+	defer db.Close()
+	cleanTables(t, db)
+	store := NewPGStore(db)
+	ctx := context.Background()
+
+	id1, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "soccer", Name: "Soccer"})
+	if err != nil { t.Fatalf("upsert 1: %v", err) }
+	id2, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "soccer", Name: "Soccer"})
+	if err != nil { t.Fatalf("upsert 2: %v", err) }
+	if id1 != id2 { t.Fatalf("expected same id on upsert, got %s and %s", id1, id2) }
+}
+```
+
+Run tests with: `TEST_DATABASE_URL=postgres://wallet:wallet@localhost:5433/oddsfeed?sslmode=disable go test ./internal/oddsfeed/...`
 
 - [ ] **Step 4: Run tests and commit**
 
@@ -680,21 +1026,55 @@ package oddsfeed
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/redis/go-redis/v9"
 )
 
 type Cache struct {
 	client *redis.Client
+	ttl    time.Duration
 }
 
-func NewCache(addr string) *Cache { return &Cache{client: redis.NewClient(&redis.Options{Addr: addr})} }
+func NewCache(addr string, ttl time.Duration) *Cache {
+	if ttl <= 0 { ttl = 60 * time.Second }
+	return &Cache{client: redis.NewClient(&redis.Options{Addr: addr}), ttl: ttl}
+}
 
 func (c *Cache) SetLiveOdds(ctx context.Context, marketID string, odds map[string]string) error {
-	return c.client.HSet(ctx, fmt.Sprintf("oddsfeed:live:odds:%s", marketID), odds).Err()
+	key := fmt.Sprintf("oddsfeed:live:odds:%s", marketID)
+	pipe := c.client.Pipeline()
+	pipe.HSet(ctx, key, odds)
+	pipe.Expire(ctx, key, c.ttl)
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
 func (c *Cache) SetLiveScore(ctx context.Context, eventID, home, away, status string) error {
-	return c.client.HSet(ctx, fmt.Sprintf("oddsfeed:live:score:%s", eventID), map[string]string{"home_score": home, "away_score": away, "status": status}).Err()
+	key := fmt.Sprintf("oddsfeed:live:score:%s", eventID)
+	pipe := c.client.Pipeline()
+	pipe.HSet(ctx, key, map[string]string{"home_score": home, "away_score": away, "status": status})
+	pipe.Expire(ctx, key, c.ttl)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (c *Cache) SetLiveEventIDs(ctx context.Context, sportID string, ids []string) error {
+	key := fmt.Sprintf("oddsfeed:live:events:%s", sportID)
+	pipe := c.client.Pipeline()
+	pipe.Del(ctx, key)
+	for _, id := range ids { pipe.SAdd(ctx, key, id) }
+	pipe.Expire(ctx, key, c.ttl)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (c *Cache) GetLiveOdds(ctx context.Context, marketID string) (map[string]string, error) {
+	return c.client.HGetAll(ctx, fmt.Sprintf("oddsfeed:live:odds:%s", marketID)).Result()
+}
+
+func (c *Cache) GetLiveScore(ctx context.Context, eventID string) (map[string]string, error) {
+	return c.client.HGetAll(ctx, fmt.Sprintf("oddsfeed:live:score:%s", eventID)).Result()
 }
 
 func (c *Cache) Close() error { return c.client.Close() }
@@ -813,22 +1193,107 @@ func (s *Service) GetEvent(ctx context.Context, id string) (*Event, error) { ret
 func (s *Service) ListMarkets(ctx context.Context, eventID, status string, page, pageSize int) ([]Market, error) { return s.store.ListMarkets(ctx, eventID, status, page, pageSize) }
 func (s *Service) ListOutcomes(ctx context.Context, marketID, status string, page, pageSize int) ([]Outcome, error) { return s.store.ListOutcomes(ctx, marketID, status, page, pageSize) }
 func (s *Service) ListLiveScores(ctx context.Context, sportID, leagueID string, page, pageSize int) ([]Event, error) { return s.store.ListLiveScores(ctx, sportID, leagueID, page, pageSize) }
-
-// Add SetLiveEventIDs to Cache if missing.
-func (c *Cache) SetLiveEventIDs(ctx context.Context, sportID string, ids []string) error {
-	key := fmt.Sprintf("oddsfeed:live:events:%s", sportID)
-	pipe := c.client.Pipeline()
-	pipe.Del(ctx, key)
-	for _, id := range ids { pipe.SAdd(ctx, key, id) }
-	pipe.Expire(ctx, key, 60)
-	_, err := pipe.Exec(ctx)
-	return err
-}
 ```
 
 - [ ] **Step 4: Write tests for normalizer and service**
 
-Test `NormalizeSnapshot` with the mock snapshot and verify all entity counts and cross-entity IDs. Test `Service.SyncProvider` with a memory store and mock provider and verify upserts and events.
+Create `internal/oddsfeed/normalizer_test.go`:
+
+```go
+package oddsfeed
+
+import (
+	"testing"
+	"time"
+)
+
+func TestNormalizeSnapshot(t *testing.T) {
+	snap := &Snapshot{
+		Provider: "mock",
+		Sports:   []SportSnapshot{{ProviderID: "sp-1", Slug: "soccer", Name: "Soccer"}},
+		Leagues:  []LeagueSnapshot{{ProviderID: "lg-1", SportID: "sp-1", Name: "League A", Country: "A"}},
+		Events: []EventSnapshot{{
+			ProviderID: "ev-1", LeagueID: "lg-1", SportID: "sp-1",
+			HomeParticipant: "A", AwayParticipant: "B",
+			StartsAt: time.Now().Add(time.Hour).Format(time.RFC3339), Status: "upcoming",
+		}},
+		Markets: []MarketSnapshot{{ProviderID: "mk-1", EventID: "ev-1", Type: "1x2", Name: "Result", Status: "active"}},
+		Outcomes: []OutcomeSnapshot{{ProviderID: "oc-1", MarketID: "mk-1", Name: "A", Odds: "2.00", Status: "active"}},
+	}
+	sports, leagues, events, markets, outcomes := NormalizeSnapshot(snap)
+	if len(sports) != 1 || len(leagues) != 1 || len(events) != 1 || len(markets) != 1 || len(outcomes) != 1 {
+		t.Fatalf("unexpected counts: %d %d %d %d %d", len(sports), len(leagues), len(events), len(markets), len(outcomes))
+	}
+	if events[0].SportID != sports[0].ID || events[0].LeagueID != leagues[0].ID {
+		t.Fatalf("event did not map to correct sport/league")
+	}
+	if outcomes[0].MarketID != markets[0].ID {
+		t.Fatalf("outcome did not map to correct market")
+	}
+	if outcomes[0].Odds != "2.00" { t.Fatalf("expected odds 2.00, got %s", outcomes[0].Odds) }
+}
+```
+
+Create `internal/oddsfeed/service_test.go` with an in-memory store:
+
+```go
+package oddsfeed
+
+import (
+	"context"
+	"testing"
+	"log/slog"
+
+	"github.com/realyoussefhossam/betmonster/internal/oddsfeed/providers/mock"
+)
+
+type memStore struct {
+	sports   []Sport
+	leagues  []League
+	events   []Event
+	markets  []Market
+	outcomes []Outcome
+}
+
+func (m *memStore) UpsertSport(ctx context.Context, s Sport) (string, error) {
+	m.sports = append(m.sports, s)
+	return s.ID, nil
+}
+func (m *memStore) UpsertLeague(ctx context.Context, l League) (string, error) {
+	m.leagues = append(m.leagues, l)
+	return l.ID, nil
+}
+func (m *memStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
+	m.events = append(m.events, e)
+	return e.ID, nil
+}
+func (m *memStore) UpsertMarket(ctx context.Context, mk Market) (string, error) {
+	m.markets = append(m.markets, mk)
+	return mk.ID, nil
+}
+func (m *memStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) {
+	m.outcomes = append(m.outcomes, o)
+	return o.ID, nil
+}
+func (m *memStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) { return m.sports, nil }
+func (m *memStore) ListLeagues(ctx context.Context, sportID string, page, pageSize int) ([]League, error) { return m.leagues, nil }
+func (m *memStore) ListEvents(ctx context.Context, sportID, leagueID, status string, page, pageSize int) ([]Event, error) { return m.events, nil }
+func (m *memStore) GetEvent(ctx context.Context, id string) (*Event, error) { return nil, nil }
+func (m *memStore) ListMarkets(ctx context.Context, eventID, status string, page, pageSize int) ([]Market, error) { return m.markets, nil }
+func (m *memStore) ListOutcomes(ctx context.Context, marketID, status string, page, pageSize int) ([]Outcome, error) { return m.outcomes, nil }
+func (m *memStore) ListLiveScores(ctx context.Context, sportID, leagueID string, page, pageSize int) ([]Event, error) { return nil, nil }
+
+func TestServiceSyncProvider(t *testing.T) {
+	store := &memStore{}
+	svc := NewService(store, []FeedProvider{mock.New()}, nil, nil, slog.Default())
+	if err := svc.SyncProvider(context.Background(), "mock"); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if len(store.sports) != 1 { t.Fatalf("expected 1 sport, got %d", len(store.sports)) }
+	if len(store.events) != 1 { t.Fatalf("expected 1 event, got %d", len(store.events)) }
+	if len(store.outcomes) != 3 { t.Fatalf("expected 3 outcomes, got %d", len(store.outcomes)) }
+}
+```
 
 - [ ] **Step 5: Run tests and commit**
 
@@ -856,7 +1321,9 @@ package oddsfeed
 
 import (
 	"context"
+	"fmt"
 	"time"
+
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 )
 
@@ -917,11 +1384,91 @@ func (s *GRPCServer) ListLiveScores(ctx context.Context, req *pb.ListLiveScoresR
 }
 ```
 
-Add `import "fmt"` to server.go.
-
 - [ ] **Step 2: Write gRPC server test**
 
-Start a gRPC server with an in-memory store and mock provider. Call `ListSports` and `ListEvents` and verify counts. Use `bufconn` or a free port.
+Create `internal/oddsfeed/server_test.go`:
+
+```go
+package oddsfeed
+
+import (
+	"context"
+	"log/slog"
+	"net"
+	"testing"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
+	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/oddsfeed/providers/mock"
+)
+
+type grpcMemStore struct {
+	sports  []Sport
+	leagues []League
+	events  []Event
+	markets []Market
+	outcomes []Outcome
+}
+
+func (m *grpcMemStore) UpsertSport(ctx context.Context, s Sport) (string, error) {
+	m.sports = append(m.sports, s)
+	return s.ID, nil
+}
+func (m *grpcMemStore) UpsertLeague(ctx context.Context, l League) (string, error) {
+	m.leagues = append(m.leagues, l)
+	return l.ID, nil
+}
+func (m *grpcMemStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
+	m.events = append(m.events, e)
+	return e.ID, nil
+}
+func (m *grpcMemStore) UpsertMarket(ctx context.Context, mk Market) (string, error) {
+	m.markets = append(m.markets, mk)
+	return mk.ID, nil
+}
+func (m *grpcMemStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) {
+	m.outcomes = append(m.outcomes, o)
+	return o.ID, nil
+}
+func (m *grpcMemStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) { return m.sports, nil }
+func (m *grpcMemStore) ListLeagues(ctx context.Context, sportID string, page, pageSize int) ([]League, error) { return m.leagues, nil }
+func (m *grpcMemStore) ListEvents(ctx context.Context, sportID, leagueID, status string, page, pageSize int) ([]Event, error) { return m.events, nil }
+func (m *grpcMemStore) GetEvent(ctx context.Context, id string) (*Event, error) { return nil, nil }
+func (m *grpcMemStore) ListMarkets(ctx context.Context, eventID, status string, page, pageSize int) ([]Market, error) { return m.markets, nil }
+func (m *grpcMemStore) ListOutcomes(ctx context.Context, marketID, status string, page, pageSize int) ([]Outcome, error) { return m.outcomes, nil }
+func (m *grpcMemStore) ListLiveScores(ctx context.Context, sportID, leagueID string, page, pageSize int) ([]Event, error) { return nil, nil }
+
+func TestGRPCServerListSports(t *testing.T) {
+	store := &grpcMemStore{}
+	svc := NewService(store, []FeedProvider{mock.New()}, nil, nil, slog.Default())
+	if err := svc.SyncProvider(context.Background(), "mock"); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+
+	listener := bufconn.Listen(1024 * 1024)
+	grpcServer := grpc.NewServer()
+	pb.RegisterOddsFeedServiceServer(grpcServer, NewGRPCServer(svc))
+	go grpcServer.Serve(listener)
+	defer grpcServer.Stop()
+
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }), grpc.WithInsecure())
+	if err != nil { t.Fatalf("dial: %v", err) }
+	defer conn.Close()
+
+	client := pb.NewOddsFeedServiceClient(conn)
+	resp, err := client.ListSports(ctx, &pb.ListSportsRequest{Page: 1, PageSize: 10})
+	if err != nil { t.Fatalf("list sports: %v", err) }
+	if len(resp.Sports) != 1 { t.Fatalf("expected 1 sport, got %d", len(resp.Sports)) }
+
+	eventResp, err := client.ListEvents(ctx, &pb.ListEventsRequest{Page: 1, PageSize: 10})
+	if err != nil { t.Fatalf("list events: %v", err) }
+	if len(eventResp.Events) != 1 { t.Fatalf("expected 1 event, got %d", len(eventResp.Events)) }
+}
+```
+
+Note: `grpc.WithInsecure()` is deprecated in newer grpc versions; use `grpc.WithTransportCredentials(insecure.NewCredentials())` if the project has a newer grpc. Check `go.mod` first.
 
 - [ ] **Step 3: Run tests and commit**
 
@@ -1054,12 +1601,12 @@ git commit -m "feat(oddsfeed): add scheduler and websocket workers"
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -1085,7 +1632,7 @@ func main() {
 	if err := runMigrations(cfg.DatabaseURL); err != nil { logger.Error("migrations", slog.String("error", err.Error())); os.Exit(1) }
 
 	store := oddsfeed.NewPGStore(db)
-	cache := oddsfeed.NewCache(cfg.RedisAddr)
+	cache := oddsfeed.NewCache(cfg.RedisAddr, time.Duration(cfg.SyncIntervalSeconds)*time.Second)
 	bus, err := oddsfeed.NewEventBus(cfg.NATSURL, logger)
 	if err != nil { logger.Error("nats", slog.String("error", err.Error())); os.Exit(1) }
 	defer bus.Close()
@@ -1134,8 +1681,6 @@ func startHealthServer(logger *slog.Logger, port string) {
 	}
 }
 ```
-
-Add `import "context"` and remove unused `strings` if not used.
 
 - [ ] **Step 2: Write Dockerfile**
 
