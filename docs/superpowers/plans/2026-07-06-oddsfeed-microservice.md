@@ -48,7 +48,7 @@
 ```protobuf
 syntax = "proto3";
 package oddsfeed;
-option go_package = "github.com/realyoussefhossam/betmonster/internal/proto";
+option go_package = "github.com/realyoussefhossam/betmonster/internal/proto"; // generated Go package is `proto` (shared with wallet.proto)
 
 service OddsFeedService {
   rpc ListSports(ListSportsRequest) returns (ListSportsResponse);
