@@ -26,7 +26,10 @@ func (m *jsonMap) Scan(value interface{}) error {
 	default:
 		return fmt.Errorf("cannot scan %T into jsonMap", value)
 	}
-	return json.Unmarshal(b, (*map[string]string)(m))
+	if err := json.Unmarshal(b, (*map[string]string)(m)); err != nil {
+		return fmt.Errorf("unmarshal jsonMap: %w", err)
+	}
+	return nil
 }
 
 type PGStore struct {

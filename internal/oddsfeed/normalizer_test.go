@@ -54,3 +54,14 @@ func TestNormalizeSnapshotInvalidTime(t *testing.T) {
 		t.Fatal("expected error for invalid time format")
 	}
 }
+
+func TestNormalizeSnapshotBrokenReference(t *testing.T) {
+	snap := &Snapshot{
+		Provider: "mock",
+		Leagues:  []LeagueSnapshot{{ProviderID: "lg-1", SportID: "missing-sport", Name: "League A"}},
+	}
+	_, _, _, _, _, err := NormalizeSnapshot(snap)
+	if err == nil {
+		t.Fatal("expected error for broken league->sport reference")
+	}
+}

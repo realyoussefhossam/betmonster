@@ -9,6 +9,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestJsonMapScan(t *testing.T) {
+	var m jsonMap
+	require.NoError(t, m.Scan([]byte(`{"key":"value"}`)))
+	assert.Equal(t, "value", m["key"])
+
+	var nilMap jsonMap
+	require.NoError(t, nilMap.Scan(nil))
+	assert.Nil(t, nilMap)
+
+	var badMap jsonMap
+	require.Error(t, badMap.Scan([]byte(`not-json`)))
+}
+
 func TestInMemoryStoreUpsertAndList(t *testing.T) {
 	store := NewInMemoryStore()
 	ctx := context.Background()

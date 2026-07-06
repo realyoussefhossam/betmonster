@@ -27,7 +27,11 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 	for _, l := range snap.Leagues {
 		id := uuid.NewString()
 		leagueIDs[l.ProviderID] = id
-		leagues = append(leagues, League{ID: id, Provider: snap.Provider, ProviderLeagueID: l.ProviderID, SportID: sportIDs[l.SportID], Name: l.Name, Country: l.Country})
+		sportID, ok := sportIDs[l.SportID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("league %s references unknown sport %s", l.ProviderID, l.SportID)
+		}
+		leagues = append(leagues, League{ID: id, Provider: snap.Provider, ProviderLeagueID: l.ProviderID, SportID: sportID, Name: l.Name, Country: l.Country})
 	}
 
 	eventIDs := map[string]string{}
@@ -45,9 +49,17 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 				return nil, nil, nil, nil, nil, fmt.Errorf("parse event score_updated_at: %w", err)
 			}
 		}
+		leagueID, ok := leagueIDs[e.LeagueID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("event %s references unknown league %s", e.ProviderID, e.LeagueID)
+		}
+		sportID, ok := sportIDs[e.SportID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("event %s references unknown sport %s", e.ProviderID, e.SportID)
+		}
 		events = append(events, Event{
 			ID: id, Provider: snap.Provider, ProviderEventID: e.ProviderID,
-			LeagueID: leagueIDs[e.LeagueID], SportID: sportIDs[e.SportID],
+			LeagueID: leagueID, SportID: sportID,
 			HomeParticipant: e.HomeParticipant, AwayParticipant: e.AwayParticipant,
 			StartsAt: startsAt, Status: e.Status,
 			HomeScore: e.HomeScore, AwayScore: e.AwayScore, ScoreUpdatedAt: scoreUpdatedAt, Metadata: e.Metadata,
@@ -58,13 +70,21 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 	for _, m := range snap.Markets {
 		id := uuid.NewString()
 		marketIDs[m.ProviderID] = id
-		markets = append(markets, Market{ID: id, Provider: snap.Provider, ProviderMarketID: m.ProviderID, EventID: eventIDs[m.EventID], Type: m.Type, Name: m.Name, Line: m.Line, Status: m.Status, Metadata: m.Metadata})
+		eventID, ok := eventIDs[m.EventID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("market %s references unknown event %s", m.ProviderID, m.EventID)
+		}
+		markets = append(markets, Market{ID: id, Provider: snap.Provider, ProviderMarketID: m.ProviderID, EventID: eventID, Type: m.Type, Name: m.Name, Line: m.Line, Status: m.Status, Metadata: m.Metadata})
 	}
 
 	for _, o := range snap.Outcomes {
+		marketID, ok := marketIDs[o.MarketID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("outcome %s references unknown market %s", o.ProviderID, o.MarketID)
+		}
 		outcomes = append(outcomes, Outcome{
 			ID: uuid.NewString(), Provider: snap.Provider, ProviderOutcomeID: o.ProviderID,
-			MarketID: marketIDs[o.MarketID], Name: o.Name, Odds: o.Odds, Status: o.Status, Metadata: o.Metadata,
+			MarketID: marketID, Name: o.Name, Odds: o.Odds, Status: o.Status, Metadata: o.Metadata,
 		})
 	}
 	return sports, leagues, events, markets, outcomes, nil
