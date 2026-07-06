@@ -965,11 +965,13 @@ git commit -m "feat(oddsfeed): add postgres store and tests"
 package oddsfeed
 
 import (
+	"fmt"
 	"time"
+
 	"github.com/google/uuid"
 )
 
-func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []Outcome) {
+func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []Outcome, error) {
 	sports := make([]Sport, 0, len(snap.Sports))
 	leagues := make([]League, 0, len(snap.Leagues))
 	events := make([]Event, 0, len(snap.Events))
@@ -987,18 +989,39 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 	for _, l := range snap.Leagues {
 		id := uuid.NewString()
 		leagueIDs[l.ProviderID] = id
-		leagues = append(leagues, League{ID: id, Provider: snap.Provider, ProviderLeagueID: l.ProviderID, SportID: sportIDs[l.SportID], Name: l.Name, Country: l.Country})
+		sportID, ok := sportIDs[l.SportID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("league %s references unknown sport %s", l.ProviderID, l.SportID)
+		}
+		leagues = append(leagues, League{ID: id, Provider: snap.Provider, ProviderLeagueID: l.ProviderID, SportID: sportID, Name: l.Name, Country: l.Country})
 	}
 
 	eventIDs := map[string]string{}
 	for _, e := range snap.Events {
 		id := uuid.NewString()
 		eventIDs[e.ProviderID] = id
-		startsAt, _ := time.Parse(time.RFC3339, e.StartsAt)
-		scoreUpdatedAt, _ := time.Parse(time.RFC3339, e.ScoreUpdatedAt)
+		startsAt, err := time.Parse(time.RFC3339, e.StartsAt)
+		if err != nil {
+			return nil, nil, nil, nil, nil, fmt.Errorf("parse event starts_at: %w", err)
+		}
+		var scoreUpdatedAt time.Time
+		if e.ScoreUpdatedAt != "" {
+			scoreUpdatedAt, err = time.Parse(time.RFC3339, e.ScoreUpdatedAt)
+			if err != nil {
+				return nil, nil, nil, nil, nil, fmt.Errorf("parse event score_updated_at: %w", err)
+			}
+		}
+		leagueID, ok := leagueIDs[e.LeagueID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("event %s references unknown league %s", e.ProviderID, e.LeagueID)
+		}
+		sportID, ok := sportIDs[e.SportID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("event %s references unknown sport %s", e.ProviderID, e.SportID)
+		}
 		events = append(events, Event{
 			ID: id, Provider: snap.Provider, ProviderEventID: e.ProviderID,
-			LeagueID: leagueIDs[e.LeagueID], SportID: sportIDs[e.SportID],
+			LeagueID: leagueID, SportID: sportID,
 			HomeParticipant: e.HomeParticipant, AwayParticipant: e.AwayParticipant,
 			StartsAt: startsAt, Status: e.Status,
 			HomeScore: e.HomeScore, AwayScore: e.AwayScore, ScoreUpdatedAt: scoreUpdatedAt, Metadata: e.Metadata,
@@ -1009,16 +1032,24 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 	for _, m := range snap.Markets {
 		id := uuid.NewString()
 		marketIDs[m.ProviderID] = id
-		markets = append(markets, Market{ID: id, Provider: snap.Provider, ProviderMarketID: m.ProviderID, EventID: eventIDs[m.EventID], Type: m.Type, Name: m.Name, Line: m.Line, Status: m.Status, Metadata: m.Metadata})
+		eventID, ok := eventIDs[m.EventID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("market %s references unknown event %s", m.ProviderID, m.EventID)
+		}
+		markets = append(markets, Market{ID: id, Provider: snap.Provider, ProviderMarketID: m.ProviderID, EventID: eventID, Type: m.Type, Name: m.Name, Line: m.Line, Status: m.Status, Metadata: m.Metadata})
 	}
 
 	for _, o := range snap.Outcomes {
+		marketID, ok := marketIDs[o.MarketID]
+		if !ok {
+			return nil, nil, nil, nil, nil, fmt.Errorf("outcome %s references unknown market %s", o.ProviderID, o.MarketID)
+		}
 		outcomes = append(outcomes, Outcome{
 			ID: uuid.NewString(), Provider: snap.Provider, ProviderOutcomeID: o.ProviderID,
-			MarketID: marketIDs[o.MarketID], Name: o.Name, Odds: o.Odds, Status: o.Status, Metadata: o.Metadata,
+			MarketID: marketID, Name: o.Name, Odds: o.Odds, Status: o.Status, Metadata: o.Metadata,
 		})
 	}
-	return sports, leagues, events, markets, outcomes
+	return sports, leagues, events, markets, outcomes, nil
 }
 ```
 
@@ -1150,7 +1181,10 @@ func (s *Service) SyncProvider(ctx context.Context, providerName string) error {
 }
 
 func (s *Service) applySnapshot(ctx context.Context, snap *Snapshot) error {
-	sports, leagues, events, markets, outcomes := NormalizeSnapshot(snap)
+	sports, leagues, events, markets, outcomes, err := NormalizeSnapshot(snap)
+	if err != nil {
+		return fmt.Errorf("normalize snapshot: %w", err)
+	}
 	for _, sp := range sports {
 		id, err := s.store.UpsertSport(ctx, sp)
 		if err != nil { return fmt.Errorf("upsert sport: %w", err) }
@@ -1224,7 +1258,8 @@ func TestNormalizeSnapshot(t *testing.T) {
 		Markets: []MarketSnapshot{{ProviderID: "mk-1", EventID: "ev-1", Type: "1x2", Name: "Result", Status: "active"}},
 		Outcomes: []OutcomeSnapshot{{ProviderID: "oc-1", MarketID: "mk-1", Name: "A", Odds: "2.00", Status: "active"}},
 	}
-	sports, leagues, events, markets, outcomes := NormalizeSnapshot(snap)
+	sports, leagues, events, markets, outcomes, err := NormalizeSnapshot(snap)
+	if err != nil { t.Fatalf("normalize: %v", err) }
 	if len(sports) != 1 || len(leagues) != 1 || len(events) != 1 || len(markets) != 1 || len(outcomes) != 1 {
 		t.Fatalf("unexpected counts: %d %d %d %d %d", len(sports), len(leagues), len(events), len(markets), len(outcomes))
 	}
@@ -1235,6 +1270,30 @@ func TestNormalizeSnapshot(t *testing.T) {
 		t.Fatalf("outcome did not map to correct market")
 	}
 	if outcomes[0].Odds != "2.00" { t.Fatalf("expected odds 2.00, got %s", outcomes[0].Odds) }
+}
+
+func TestNormalizeSnapshotInvalidTime(t *testing.T) {
+	snap := &Snapshot{
+		Provider: "mock",
+		Events: []EventSnapshot{{
+			ProviderID: "ev-1", LeagueID: "lg-1", SportID: "sp-1",
+			HomeParticipant: "A", AwayParticipant: "B",
+			StartsAt: "invalid-time", Status: "upcoming",
+		}},
+	}
+	if _, _, _, _, _, err := NormalizeSnapshot(snap); err == nil {
+		t.Fatal("expected error for invalid time format")
+	}
+}
+
+func TestNormalizeSnapshotBrokenReference(t *testing.T) {
+	snap := &Snapshot{
+		Provider: "mock",
+		Leagues: []LeagueSnapshot{{ProviderID: "lg-1", SportID: "missing-sport", Name: "League A"}},
+	}
+	if _, _, _, _, _, err := NormalizeSnapshot(snap); err == nil {
+		t.Fatal("expected error for broken league->sport reference")
+	}
 }
 ```
 
