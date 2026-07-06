@@ -202,10 +202,16 @@ func (s *PGStore) ListLeagues(ctx context.Context, sportID string, page, pageSiz
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	sportUUID, err := parseUUID(sportID)
-	if err != nil {
-		return nil, fmt.Errorf("list leagues: invalid sport uuid: %w", err)
+
+	var sportUUID interface{} = nil
+	if sportID != "" {
+		parsed, err := uuid.Parse(sportID)
+		if err != nil {
+			return nil, fmt.Errorf("list leagues: invalid sport uuid: %w", err)
+		}
+		sportUUID = parsed
 	}
+
 	rows, err := s.db.QueryContext(ctx, `SELECT id, provider, provider_league_id, sport_id, name, country, created_at, updated_at FROM leagues WHERE ($1::uuid IS NULL OR sport_id = $1::uuid) ORDER BY name LIMIT $2 OFFSET $3`, sportUUID, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list leagues: %w", err)
@@ -234,13 +240,21 @@ func (s *PGStore) ListEvents(ctx context.Context, sportID, leagueID, status stri
 	}
 	offset := (page - 1) * pageSize
 
-	sportUUID, err := parseUUID(sportID)
-	if err != nil {
-		return nil, fmt.Errorf("list events: invalid sport uuid: %w", err)
+	var sportUUID interface{} = nil
+	if sportID != "" {
+		parsed, err := uuid.Parse(sportID)
+		if err != nil {
+			return nil, fmt.Errorf("list events: invalid sport uuid: %w", err)
+		}
+		sportUUID = parsed
 	}
-	leagueUUID, err := parseUUID(leagueID)
-	if err != nil {
-		return nil, fmt.Errorf("list events: invalid league uuid: %w", err)
+	var leagueUUID interface{} = nil
+	if leagueID != "" {
+		parsed, err := uuid.Parse(leagueID)
+		if err != nil {
+			return nil, fmt.Errorf("list events: invalid league uuid: %w", err)
+		}
+		leagueUUID = parsed
 	}
 
 	query := `SELECT id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata, created_at, updated_at FROM events
@@ -302,13 +316,17 @@ func (s *PGStore) ListMarkets(ctx context.Context, eventID, status string, page,
 	}
 	offset := (page - 1) * pageSize
 
-	eventUUID, err := parseUUID(eventID)
-	if err != nil {
-		return nil, fmt.Errorf("list markets: invalid event uuid: %w", err)
+	var eventUUID interface{} = nil
+	if eventID != "" {
+		parsed, err := uuid.Parse(eventID)
+		if err != nil {
+			return nil, fmt.Errorf("list markets: invalid event uuid: %w", err)
+		}
+		eventUUID = parsed
 	}
 
 	query := `SELECT id, provider, provider_market_id, event_id, type, name, line, status, metadata, created_at, updated_at FROM markets
-		WHERE event_id = $1
+		WHERE ($1::uuid IS NULL OR event_id = $1::uuid)
 		  AND ($2 = '' OR status = $2)
 		ORDER BY name LIMIT $3 OFFSET $4`
 	rows, err := s.db.QueryContext(ctx, query, eventUUID, status, pageSize, offset)
@@ -339,13 +357,17 @@ func (s *PGStore) ListOutcomes(ctx context.Context, marketID, status string, pag
 	}
 	offset := (page - 1) * pageSize
 
-	marketUUID, err := parseUUID(marketID)
-	if err != nil {
-		return nil, fmt.Errorf("list outcomes: invalid market uuid: %w", err)
+	var marketUUID interface{} = nil
+	if marketID != "" {
+		parsed, err := uuid.Parse(marketID)
+		if err != nil {
+			return nil, fmt.Errorf("list outcomes: invalid market uuid: %w", err)
+		}
+		marketUUID = parsed
 	}
 
 	query := `SELECT id, provider, provider_outcome_id, market_id, name, odds, status, metadata, created_at, updated_at FROM outcomes
-		WHERE market_id = $1
+		WHERE ($1::uuid IS NULL OR market_id = $1::uuid)
 		  AND ($2 = '' OR status = $2)
 		ORDER BY name LIMIT $3 OFFSET $4`
 	rows, err := s.db.QueryContext(ctx, query, marketUUID, status, pageSize, offset)
