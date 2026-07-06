@@ -1,2 +1,4 @@
 CREATE DATABASE better_auth;
 GRANT ALL PRIVILEGES ON DATABASE better_auth TO wallet;
+CREATE DATABASE oddsfeed;
+GRANT ALL PRIVILEGES ON DATABASE oddsfeed TO wallet;

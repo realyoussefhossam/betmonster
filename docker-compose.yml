@@ -63,6 +63,32 @@ services:
       - default
       - xcash_public
 
+  oddsfeed:
+    build:
+      context: .
+      dockerfile: Dockerfile.oddsfeed
+    image: betmonster/oddsfeed
+    ports:
+      - "8082:8082"
+      - "50052:50052"
+    environment:
+      PORT: "8082"
+      GRPC_PORT: "50052"
+      DATABASE_URL: postgres://wallet:wallet@postgres:5432/oddsfeed?sslmode=disable
+      REDIS_ADDR: redis:6379
+      NATS_URL: nats://nats:4222
+      PROVIDERS: ${ODDSFEED_PROVIDERS:-mock}
+      AZURO_GRAPH_URL: ${ODDSFEED_AZURO_GRAPH_URL:-}
+      AZURO_WS_URL: ${ODDSFEED_AZURO_WS_URL:-}
+      SYNC_INTERVAL_SECONDS: ${ODDSFEED_SYNC_INTERVAL_SECONDS:-60}
+      WS_RECONNECT_MAX_SECONDS: ${ODDSFEED_WS_RECONNECT_MAX_SECONDS:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      nats:
+        condition: service_started
 
   gateway:
     build:
