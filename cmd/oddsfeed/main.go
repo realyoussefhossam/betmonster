@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -17,6 +18,7 @@ import (
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 	"github.com/realyoussefhossam/betmonster/internal/oddsfeed"
+	"github.com/realyoussefhossam/betmonster/internal/oddsfeed/providers/azuro"
 	"github.com/realyoussefhossam/betmonster/internal/oddsfeed/providers/mock"
 	"github.com/realyoussefhossam/betmonster/internal/shared/config"
 	"github.com/realyoussefhossam/betmonster/internal/shared/logging"
@@ -49,7 +51,12 @@ func main() {
 	}
 	defer bus.Close()
 
-	providers := []oddsfeed.FeedProvider{mock.New()}
+	providerNames := splitTrim(cfg.Providers)
+	providers := buildProviders(providerNames, cfg, logger)
+	if len(providers) == 0 {
+		logger.Error("no providers configured")
+		os.Exit(1)
+	}
 	svc := oddsfeed.NewService(store, providers, cache, bus, logger)
 
 	grpcServer := grpc.NewServer()
@@ -57,7 +64,7 @@ func main() {
 
 	go startHealthServer(logger, cfg.Port)
 
-	scheduler := oddsfeed.NewScheduler(svc, []string{"mock"}, time.Duration(cfg.SyncIntervalSeconds)*time.Second, logger)
+	scheduler := oddsfeed.NewScheduler(svc, providerNames, time.Duration(cfg.SyncIntervalSeconds)*time.Second, logger)
 	go scheduler.Start(context.Background())
 
 	ws := oddsfeed.NewWebSocketWorker(svc, providers, logger)
@@ -105,4 +112,31 @@ func startHealthServer(logger *slog.Logger, port string) {
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		logger.Error("oddsfeed health stopped", slog.String("error", err.Error()))
 	}
+}
+
+func splitTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func buildProviders(names []string, cfg config.OddsFeed, logger *slog.Logger) []oddsfeed.FeedProvider {
+	providers := make([]oddsfeed.FeedProvider, 0, len(names))
+	for _, name := range names {
+		switch name {
+		case "mock":
+			providers = append(providers, mock.New())
+		case "azuro":
+			providers = append(providers, azuro.New(cfg.AzuroGraphURL, cfg.AzuroWSURL))
+		default:
+			logger.Error("unknown provider, skipping", slog.String("provider", name))
+		}
+	}
+	return providers
 }
