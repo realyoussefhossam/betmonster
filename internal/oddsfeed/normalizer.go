@@ -1,6 +1,7 @@
 package oddsfeed
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -8,7 +9,7 @@ import (
 
 // NormalizeSnapshot maps provider snapshot IDs to internal UUIDs and cross-references
 // sports -> leagues -> events -> markets -> outcomes.
-func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []Outcome) {
+func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []Outcome, error) {
 	sports := make([]Sport, 0, len(snap.Sports))
 	leagues := make([]League, 0, len(snap.Leagues))
 	events := make([]Event, 0, len(snap.Events))
@@ -33,8 +34,17 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 	for _, e := range snap.Events {
 		id := uuid.NewString()
 		eventIDs[e.ProviderID] = id
-		startsAt, _ := time.Parse(time.RFC3339, e.StartsAt)
-		scoreUpdatedAt, _ := time.Parse(time.RFC3339, e.ScoreUpdatedAt)
+		startsAt, err := time.Parse(time.RFC3339, e.StartsAt)
+		if err != nil {
+			return nil, nil, nil, nil, nil, fmt.Errorf("parse event starts_at: %w", err)
+		}
+		var scoreUpdatedAt time.Time
+		if e.ScoreUpdatedAt != "" {
+			scoreUpdatedAt, err = time.Parse(time.RFC3339, e.ScoreUpdatedAt)
+			if err != nil {
+				return nil, nil, nil, nil, nil, fmt.Errorf("parse event score_updated_at: %w", err)
+			}
+		}
 		events = append(events, Event{
 			ID: id, Provider: snap.Provider, ProviderEventID: e.ProviderID,
 			LeagueID: leagueIDs[e.LeagueID], SportID: sportIDs[e.SportID],
@@ -57,5 +67,5 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 			MarketID: marketIDs[o.MarketID], Name: o.Name, Odds: o.Odds, Status: o.Status, Metadata: o.Metadata,
 		})
 	}
-	return sports, leagues, events, markets, outcomes
+	return sports, leagues, events, markets, outcomes, nil
 }

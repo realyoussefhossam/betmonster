@@ -18,7 +18,10 @@ func TestNormalizeSnapshot(t *testing.T) {
 		Markets:  []MarketSnapshot{{ProviderID: "mk-1", EventID: "ev-1", Type: "1x2", Name: "Result", Status: "active"}},
 		Outcomes: []OutcomeSnapshot{{ProviderID: "oc-1", MarketID: "mk-1", Name: "A", Odds: "2.00", Status: "active"}},
 	}
-	sports, leagues, events, markets, outcomes := NormalizeSnapshot(snap)
+	sports, leagues, events, markets, outcomes, err := NormalizeSnapshot(snap)
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
 	if len(sports) != 1 || len(leagues) != 1 || len(events) != 1 || len(markets) != 1 || len(outcomes) != 1 {
 		t.Fatalf("unexpected counts: %d %d %d %d %d", len(sports), len(leagues), len(events), len(markets), len(outcomes))
 	}
@@ -30,5 +33,24 @@ func TestNormalizeSnapshot(t *testing.T) {
 	}
 	if outcomes[0].Odds != "2.00" {
 		t.Fatalf("expected odds 2.00, got %s", outcomes[0].Odds)
+	}
+}
+
+func TestNormalizeSnapshotInvalidTime(t *testing.T) {
+	snap := &Snapshot{
+		Provider: "mock",
+		Events: []EventSnapshot{{
+			ProviderID:      "ev-1",
+			LeagueID:        "lg-1",
+			SportID:         "sp-1",
+			HomeParticipant: "Team A",
+			AwayParticipant: "Team B",
+			StartsAt:        "invalid-time",
+			Status:          "upcoming",
+		}},
+	}
+	_, _, _, _, _, err := NormalizeSnapshot(snap)
+	if err == nil {
+		t.Fatal("expected error for invalid time format")
 	}
 }

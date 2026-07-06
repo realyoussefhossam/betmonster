@@ -38,7 +38,10 @@ func (s *Service) SyncProvider(ctx context.Context, providerName string) error {
 }
 
 func (s *Service) applySnapshot(ctx context.Context, snap *Snapshot) error {
-	sports, leagues, events, markets, outcomes := NormalizeSnapshot(snap)
+	sports, leagues, events, markets, outcomes, err := NormalizeSnapshot(snap)
+	if err != nil {
+		return fmt.Errorf("normalize snapshot: %w", err)
+	}
 	for _, sp := range sports {
 		id, err := s.store.UpsertSport(ctx, sp)
 		if err != nil {
