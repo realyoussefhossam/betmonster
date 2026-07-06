@@ -60,7 +60,9 @@ func (s *memoryStore) UpsertSport(ctx context.Context, sp Sport) (string, error)
 		existing.UpdatedAt = now()
 		return existing.ID, nil
 	}
-	sp.ID = uuid.NewString()
+	if sp.ID == "" {
+		sp.ID = uuid.NewString()
+	}
 	sp.CreatedAt = now()
 	sp.UpdatedAt = sp.CreatedAt
 	s.sports[key] = &sp
@@ -78,7 +80,9 @@ func (s *memoryStore) UpsertLeague(ctx context.Context, l League) (string, error
 		existing.UpdatedAt = now()
 		return existing.ID, nil
 	}
-	l.ID = uuid.NewString()
+	if l.ID == "" {
+		l.ID = uuid.NewString()
+	}
 	l.CreatedAt = now()
 	l.UpdatedAt = l.CreatedAt
 	s.leagues[key] = &l
@@ -103,7 +107,9 @@ func (s *memoryStore) UpsertEvent(ctx context.Context, e Event) (string, error) 
 		existing.UpdatedAt = now()
 		return existing.ID, nil
 	}
-	e.ID = uuid.NewString()
+	if e.ID == "" {
+		e.ID = uuid.NewString()
+	}
 	e.CreatedAt = now()
 	e.UpdatedAt = e.CreatedAt
 	s.events[key] = &e
@@ -124,7 +130,9 @@ func (s *memoryStore) UpsertMarket(ctx context.Context, m Market) (string, error
 		existing.UpdatedAt = now()
 		return existing.ID, nil
 	}
-	m.ID = uuid.NewString()
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
 	m.CreatedAt = now()
 	m.UpdatedAt = m.CreatedAt
 	s.markets[key] = &m
@@ -144,7 +152,9 @@ func (s *memoryStore) UpsertOutcome(ctx context.Context, o Outcome) (string, err
 		existing.UpdatedAt = now()
 		return existing.ID, nil
 	}
-	o.ID = uuid.NewString()
+	if o.ID == "" {
+		o.ID = uuid.NewString()
+	}
 	o.CreatedAt = now()
 	o.UpdatedAt = o.CreatedAt
 	s.outcomes[key] = &o
