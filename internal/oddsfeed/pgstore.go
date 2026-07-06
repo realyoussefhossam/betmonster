@@ -35,6 +35,13 @@ type PGStore struct {
 
 func NewPGStore(db *sql.DB) *PGStore { return &PGStore{db: db} }
 
+func parseUUID(s string) (uuid.UUID, error) {
+	if s == "" {
+		return uuid.Nil, nil
+	}
+	return uuid.Parse(s)
+}
+
 func (s *PGStore) UpsertSport(ctx context.Context, sp Sport) (string, error) {
 	var id string
 	err := s.db.QueryRowContext(ctx, `
@@ -46,12 +53,19 @@ func (s *PGStore) UpsertSport(ctx context.Context, sp Sport) (string, error) {
 			updated_at = now()
 		RETURNING id
 	`, sp.Provider, sp.ProviderSportID, sp.Slug, sp.Name).Scan(&id)
-	return id, err
+	if err != nil {
+		return "", fmt.Errorf("upsert sport: %w", err)
+	}
+	return id, nil
 }
 
 func (s *PGStore) UpsertLeague(ctx context.Context, l League) (string, error) {
+	sportUUID, err := parseUUID(l.SportID)
+	if err != nil {
+		return "", fmt.Errorf("upsert league: invalid sport uuid: %w", err)
+	}
 	var id string
-	err := s.db.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO leagues (provider, provider_league_id, sport_id, name, country)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (provider, provider_league_id) DO UPDATE SET
@@ -60,14 +74,25 @@ func (s *PGStore) UpsertLeague(ctx context.Context, l League) (string, error) {
 			country = EXCLUDED.country,
 			updated_at = now()
 		RETURNING id
-	`, l.Provider, l.ProviderLeagueID, uuid.MustParse(l.SportID), l.Name, l.Country).Scan(&id)
-	return id, err
+	`, l.Provider, l.ProviderLeagueID, sportUUID, l.Name, l.Country).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("upsert league: %w", err)
+	}
+	return id, nil
 }
 
 func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
+	leagueUUID, err := parseUUID(e.LeagueID)
+	if err != nil {
+		return "", fmt.Errorf("upsert event: invalid league uuid: %w", err)
+	}
+	sportUUID, err := parseUUID(e.SportID)
+	if err != nil {
+		return "", fmt.Errorf("upsert event: invalid sport uuid: %w", err)
+	}
 	var id string
 	scoreUpdated := sql.NullTime{Time: e.ScoreUpdatedAt, Valid: !e.ScoreUpdatedAt.IsZero()}
-	err := s.db.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO events (provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (provider, provider_event_id) DO UPDATE SET
@@ -83,13 +108,20 @@ func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
 			metadata = EXCLUDED.metadata,
 			updated_at = now()
 		RETURNING id
-	`, e.Provider, e.ProviderEventID, uuid.MustParse(e.LeagueID), uuid.MustParse(e.SportID), e.HomeParticipant, e.AwayParticipant, e.StartsAt, e.Status, e.HomeScore, e.AwayScore, scoreUpdated, e.Metadata).Scan(&id)
-	return id, err
+	`, e.Provider, e.ProviderEventID, leagueUUID, sportUUID, e.HomeParticipant, e.AwayParticipant, e.StartsAt, e.Status, e.HomeScore, e.AwayScore, scoreUpdated, e.Metadata).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("upsert event: %w", err)
+	}
+	return id, nil
 }
 
 func (s *PGStore) UpsertMarket(ctx context.Context, m Market) (string, error) {
+	eventUUID, err := parseUUID(m.EventID)
+	if err != nil {
+		return "", fmt.Errorf("upsert market: invalid event uuid: %w", err)
+	}
 	var id string
-	err := s.db.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO markets (provider, provider_market_id, event_id, type, name, line, status, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (provider, provider_market_id) DO UPDATE SET
@@ -101,13 +133,20 @@ func (s *PGStore) UpsertMarket(ctx context.Context, m Market) (string, error) {
 			metadata = EXCLUDED.metadata,
 			updated_at = now()
 		RETURNING id
-	`, m.Provider, m.ProviderMarketID, uuid.MustParse(m.EventID), m.Type, m.Name, m.Line, m.Status, m.Metadata).Scan(&id)
-	return id, err
+	`, m.Provider, m.ProviderMarketID, eventUUID, m.Type, m.Name, m.Line, m.Status, m.Metadata).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("upsert market: %w", err)
+	}
+	return id, nil
 }
 
 func (s *PGStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) {
+	marketUUID, err := parseUUID(o.MarketID)
+	if err != nil {
+		return "", fmt.Errorf("upsert outcome: invalid market uuid: %w", err)
+	}
 	var id string
-	err := s.db.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO outcomes (provider, provider_outcome_id, market_id, name, odds, status, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (provider, provider_outcome_id) DO UPDATE SET
@@ -118,99 +157,97 @@ func (s *PGStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) 
 			metadata = EXCLUDED.metadata,
 			updated_at = now()
 		RETURNING id
-	`, o.Provider, o.ProviderOutcomeID, uuid.MustParse(o.MarketID), o.Name, o.Odds, o.Status, o.Metadata).Scan(&id)
-	return id, err
+	`, o.Provider, o.ProviderOutcomeID, marketUUID, o.Name, o.Odds, o.Status, o.Metadata).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("upsert outcome: %w", err)
+	}
+	return id, nil
 }
 
 func (s *PGStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) {
-	if page < 1 {
+	if page <= 0 {
 		page = 1
 	}
-	if pageSize < 1 {
+	if pageSize <= 0 {
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
 	rows, err := s.db.QueryContext(ctx, `SELECT id, provider, provider_sport_id, slug, name, created_at, updated_at FROM sports ORDER BY name LIMIT $1 OFFSET $2`, pageSize, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list sports: %w", err)
 	}
 	defer rows.Close()
 	var out []Sport
 	for rows.Next() {
 		var sp Sport
 		if err := rows.Scan(&sp.ID, &sp.Provider, &sp.ProviderSportID, &sp.Slug, &sp.Name, &sp.CreatedAt, &sp.UpdatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list sports: scan: %w", err)
 		}
 		out = append(out, sp)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list sports: rows: %w", err)
+	}
+	return out, nil
 }
 
 func (s *PGStore) ListLeagues(ctx context.Context, sportID string, page, pageSize int) ([]League, error) {
-	if page < 1 {
+	if page <= 0 {
 		page = 1
 	}
-	if pageSize < 1 {
+	if pageSize <= 0 {
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	var rows *sql.Rows
-	var err error
-	if sportID != "" {
-		rows, err = s.db.QueryContext(ctx, `SELECT id, provider, provider_league_id, sport_id, name, country, created_at, updated_at FROM leagues WHERE sport_id = $1 ORDER BY name LIMIT $2 OFFSET $3`, uuid.MustParse(sportID), pageSize, offset)
-	} else {
-		rows, err = s.db.QueryContext(ctx, `SELECT id, provider, provider_league_id, sport_id, name, country, created_at, updated_at FROM leagues ORDER BY name LIMIT $1 OFFSET $2`, pageSize, offset)
-	}
+	sportUUID, err := parseUUID(sportID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list leagues: invalid sport uuid: %w", err)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, provider, provider_league_id, sport_id, name, country, created_at, updated_at FROM leagues WHERE ($1::uuid IS NULL OR sport_id = $1::uuid) ORDER BY name LIMIT $2 OFFSET $3`, sportUUID, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list leagues: %w", err)
 	}
 	defer rows.Close()
 	var out []League
 	for rows.Next() {
 		var l League
 		if err := rows.Scan(&l.ID, &l.Provider, &l.ProviderLeagueID, &l.SportID, &l.Name, &l.Country, &l.CreatedAt, &l.UpdatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list leagues: scan: %w", err)
 		}
 		out = append(out, l)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list leagues: rows: %w", err)
+	}
+	return out, nil
 }
 
 func (s *PGStore) ListEvents(ctx context.Context, sportID, leagueID, status string, page, pageSize int) ([]Event, error) {
-	if page < 1 {
+	if page <= 0 {
 		page = 1
 	}
-	if pageSize < 1 {
+	if pageSize <= 0 {
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	query := `SELECT id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata, created_at, updated_at FROM events WHERE 1=1`
-	args := []interface{}{}
-	argCount := 0
-	if sportID != "" {
-		argCount++
-		args = append(args, uuid.MustParse(sportID))
-		query += fmt.Sprintf(" AND sport_id = $%d", argCount)
-	}
-	if leagueID != "" {
-		argCount++
-		args = append(args, uuid.MustParse(leagueID))
-		query += fmt.Sprintf(" AND league_id = $%d", argCount)
-	}
-	if status != "" {
-		argCount++
-		args = append(args, status)
-		query += fmt.Sprintf(" AND status = $%d", argCount)
-	}
-	argCount++
-	args = append(args, pageSize)
-	query += fmt.Sprintf(" ORDER BY starts_at DESC LIMIT $%d", argCount)
-	argCount++
-	args = append(args, offset)
-	query += fmt.Sprintf(" OFFSET $%d", argCount)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+
+	sportUUID, err := parseUUID(sportID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list events: invalid sport uuid: %w", err)
+	}
+	leagueUUID, err := parseUUID(leagueID)
+	if err != nil {
+		return nil, fmt.Errorf("list events: invalid league uuid: %w", err)
+	}
+
+	query := `SELECT id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata, created_at, updated_at FROM events
+		WHERE ($1::uuid IS NULL OR sport_id = $1::uuid)
+		  AND ($2::uuid IS NULL OR league_id = $2::uuid)
+		  AND ($3 = '' OR status = $3)
+		ORDER BY starts_at DESC LIMIT $4 OFFSET $5`
+	rows, err := s.db.QueryContext(ctx, query, sportUUID, leagueUUID, status, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list events: %w", err)
 	}
 	defer rows.Close()
 	var out []Event
@@ -218,27 +255,34 @@ func (s *PGStore) ListEvents(ctx context.Context, sportID, leagueID, status stri
 		var e Event
 		var scoreUpdated sql.NullTime
 		if err := rows.Scan(&e.ID, &e.Provider, &e.ProviderEventID, &e.LeagueID, &e.SportID, &e.HomeParticipant, &e.AwayParticipant, &e.StartsAt, &e.Status, &e.HomeScore, &e.AwayScore, &scoreUpdated, (*jsonMap)(&e.Metadata), &e.CreatedAt, &e.UpdatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list events: scan: %w", err)
 		}
 		if scoreUpdated.Valid {
 			e.ScoreUpdatedAt = scoreUpdated.Time
 		}
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list events: rows: %w", err)
+	}
+	return out, nil
 }
 
 func (s *PGStore) GetEvent(ctx context.Context, id string) (*Event, error) {
+	eventUUID, err := parseUUID(id)
+	if err != nil {
+		return nil, fmt.Errorf("get event: invalid uuid: %w", err)
+	}
 	var e Event
 	var scoreUpdated sql.NullTime
-	err := s.db.QueryRowContext(ctx, `SELECT id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata, created_at, updated_at FROM events WHERE id = $1`, uuid.MustParse(id)).Scan(
+	err = s.db.QueryRowContext(ctx, `SELECT id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata, created_at, updated_at FROM events WHERE id = $1`, eventUUID).Scan(
 		&e.ID, &e.Provider, &e.ProviderEventID, &e.LeagueID, &e.SportID, &e.HomeParticipant, &e.AwayParticipant, &e.StartsAt, &e.Status, &e.HomeScore, &e.AwayScore, &scoreUpdated, (*jsonMap)(&e.Metadata), &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get event: %w", err)
 	}
 	if scoreUpdated.Valid {
 		e.ScoreUpdatedAt = scoreUpdated.Time
@@ -247,69 +291,83 @@ func (s *PGStore) GetEvent(ctx context.Context, id string) (*Event, error) {
 }
 
 func (s *PGStore) ListMarkets(ctx context.Context, eventID, status string, page, pageSize int) ([]Market, error) {
-	if page < 1 {
+	if page <= 0 {
 		page = 1
 	}
-	if pageSize < 1 {
+	if pageSize <= 0 {
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	query := `SELECT id, provider, provider_market_id, event_id, type, name, line, status, metadata, created_at, updated_at FROM markets WHERE event_id = $1`
-	args := []interface{}{uuid.MustParse(eventID)}
-	if status != "" {
-		args = append(args, status)
-		query += fmt.Sprintf(" AND status = $%d", len(args))
-	}
-	args = append(args, pageSize, offset)
-	query += fmt.Sprintf(" ORDER BY name LIMIT $%d OFFSET $%d", len(args)-1, len(args))
-	rows, err := s.db.QueryContext(ctx, query, args...)
+
+	eventUUID, err := parseUUID(eventID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list markets: invalid event uuid: %w", err)
+	}
+
+	query := `SELECT id, provider, provider_market_id, event_id, type, name, line, status, metadata, created_at, updated_at FROM markets
+		WHERE event_id = $1
+		  AND ($2 = '' OR status = $2)
+		ORDER BY name LIMIT $3 OFFSET $4`
+	rows, err := s.db.QueryContext(ctx, query, eventUUID, status, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list markets: %w", err)
 	}
 	defer rows.Close()
 	var out []Market
 	for rows.Next() {
 		var m Market
 		if err := rows.Scan(&m.ID, &m.Provider, &m.ProviderMarketID, &m.EventID, &m.Type, &m.Name, &m.Line, &m.Status, (*jsonMap)(&m.Metadata), &m.CreatedAt, &m.UpdatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list markets: scan: %w", err)
 		}
 		out = append(out, m)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list markets: rows: %w", err)
+	}
+	return out, nil
 }
 
 func (s *PGStore) ListOutcomes(ctx context.Context, marketID, status string, page, pageSize int) ([]Outcome, error) {
-	if page < 1 {
+	if page <= 0 {
 		page = 1
 	}
-	if pageSize < 1 {
+	if pageSize <= 0 {
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	query := `SELECT id, provider, provider_outcome_id, market_id, name, odds, status, metadata, created_at, updated_at FROM outcomes WHERE market_id = $1`
-	args := []interface{}{uuid.MustParse(marketID)}
-	if status != "" {
-		args = append(args, status)
-		query += fmt.Sprintf(" AND status = $%d", len(args))
-	}
-	args = append(args, pageSize, offset)
-	query += fmt.Sprintf(" ORDER BY name LIMIT $%d OFFSET $%d", len(args)-1, len(args))
-	rows, err := s.db.QueryContext(ctx, query, args...)
+
+	marketUUID, err := parseUUID(marketID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list outcomes: invalid market uuid: %w", err)
+	}
+
+	query := `SELECT id, provider, provider_outcome_id, market_id, name, odds, status, metadata, created_at, updated_at FROM outcomes
+		WHERE market_id = $1
+		  AND ($2 = '' OR status = $2)
+		ORDER BY name LIMIT $3 OFFSET $4`
+	rows, err := s.db.QueryContext(ctx, query, marketUUID, status, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list outcomes: %w", err)
 	}
 	defer rows.Close()
 	var out []Outcome
 	for rows.Next() {
 		var o Outcome
 		if err := rows.Scan(&o.ID, &o.Provider, &o.ProviderOutcomeID, &o.MarketID, &o.Name, &o.Odds, &o.Status, (*jsonMap)(&o.Metadata), &o.CreatedAt, &o.UpdatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list outcomes: scan: %w", err)
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list outcomes: rows: %w", err)
+	}
+	return out, nil
 }
 
 func (s *PGStore) ListLiveScores(ctx context.Context, sportID, leagueID string, page, pageSize int) ([]Event, error) {
-	return s.ListEvents(ctx, sportID, leagueID, "live", page, pageSize)
+	out, err := s.ListEvents(ctx, sportID, leagueID, "live", page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("list live scores: %w", err)
+	}
+	return out, nil
 }

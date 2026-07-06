@@ -2,146 +2,158 @@ package oddsfeed
 
 import (
 	"context"
-	"database/sql"
-	"net/url"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func testDB(t *testing.T) *sql.DB {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = "postgres://wallet:wallet@localhost:5433/oddsfeed?sslmode=disable"
-	}
-	db, err := sql.Open("pgx", url)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := db.Ping(); err != nil {
-		t.Fatalf("ping db: %v", err)
-	}
-	if err := runTestMigrations(url); err != nil {
-		t.Fatalf("migrations: %v", err)
-	}
-	return db
-}
-
-func runTestMigrations(databaseURL string) error {
-	db, err := sql.Open("pgx", databaseURL)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	driver, err := pgx.WithInstance(db, &pgx.Config{})
-	if err != nil {
-		return err
-	}
-	_, filename, _, _ := runtime.Caller(0)
-	migrationsDir := filepath.Join(filepath.Dir(filename), "migrations")
-	sourceURL := url.URL{Scheme: "file", Path: migrationsDir}
-	m, err := migrate.NewWithDatabaseInstance(sourceURL.String(), "pgx", driver)
-	if err != nil {
-		return err
-	}
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return err
-	}
-	return nil
-}
-
-func cleanTables(t *testing.T, db *sql.DB) {
-	t.Helper()
-	_, err := db.Exec(`TRUNCATE odds_snapshots, outcomes, markets, events, leagues, sports RESTART IDENTITY CASCADE`)
-	if err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
-}
-
-func TestPGStoreUpsertAndList(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
-	cleanTables(t, db)
-	store := NewPGStore(db)
+func TestInMemoryStoreUpsertAndList(t *testing.T) {
+	store := NewInMemoryStore()
 	ctx := context.Background()
 
 	sportID, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "soccer", Name: "Soccer"})
-	if err != nil {
-		t.Fatalf("upsert sport: %v", err)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, sportID)
 
 	leagueID, err := store.UpsertLeague(ctx, League{Provider: "mock", ProviderLeagueID: "lg-1", SportID: sportID, Name: "League A", Country: "A"})
-	if err != nil {
-		t.Fatalf("upsert league: %v", err)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, leagueID)
 
 	eventID, err := store.UpsertEvent(ctx, Event{
 		Provider: "mock", ProviderEventID: "ev-1", LeagueID: leagueID, SportID: sportID,
 		HomeParticipant: "A", AwayParticipant: "B", StartsAt: time.Now().Add(time.Hour), Status: "upcoming",
 	})
-	if err != nil {
-		t.Fatalf("upsert event: %v", err)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, eventID)
 
 	marketID, err := store.UpsertMarket(ctx, Market{Provider: "mock", ProviderMarketID: "mk-1", EventID: eventID, Type: "1x2", Name: "Result", Status: "active"})
-	if err != nil {
-		t.Fatalf("upsert market: %v", err)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, marketID)
 
-	_, err = store.UpsertOutcome(ctx, Outcome{Provider: "mock", ProviderOutcomeID: "oc-1", MarketID: marketID, Name: "A", Odds: "2.00", Status: "active"})
-	if err != nil {
-		t.Fatalf("upsert outcome: %v", err)
-	}
+	outcomeID, err := store.UpsertOutcome(ctx, Outcome{Provider: "mock", ProviderOutcomeID: "oc-1", MarketID: marketID, Name: "A", Odds: "2.00", Status: "active"})
+	require.NoError(t, err)
+	assert.NotEmpty(t, outcomeID)
 
 	sports, err := store.ListSports(ctx, 1, 10)
-	if err != nil {
-		t.Fatalf("list sports: %v", err)
-	}
-	if len(sports) != 1 {
-		t.Fatalf("expected 1 sport, got %d", len(sports))
-	}
+	require.NoError(t, err)
+	assert.Len(t, sports, 1)
+
+	leagues, err := store.ListLeagues(ctx, sportID, 1, 10)
+	require.NoError(t, err)
+	assert.Len(t, leagues, 1)
+
+	leaguesAll, err := store.ListLeagues(ctx, "", 1, 10)
+	require.NoError(t, err)
+	assert.Len(t, leaguesAll, 1)
 
 	events, err := store.ListEvents(ctx, sportID, leagueID, "", 1, 10)
-	if err != nil {
-		t.Fatalf("list events: %v", err)
-	}
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
+	require.NoError(t, err)
+	assert.Len(t, events, 1)
+
+	event, err := store.GetEvent(ctx, eventID)
+	require.NoError(t, err)
+	assert.NotNil(t, event)
+	assert.Equal(t, eventID, event.ID)
 
 	markets, err := store.ListMarkets(ctx, eventID, "", 1, 10)
-	if err != nil {
-		t.Fatalf("list markets: %v", err)
-	}
-	if len(markets) != 1 {
-		t.Fatalf("expected 1 market, got %d", len(markets))
-	}
+	require.NoError(t, err)
+	assert.Len(t, markets, 1)
+
+	marketsActive, err := store.ListMarkets(ctx, eventID, "active", 1, 10)
+	require.NoError(t, err)
+	assert.Len(t, marketsActive, 1)
+
+	outcomes, err := store.ListOutcomes(ctx, marketID, "", 1, 10)
+	require.NoError(t, err)
+	assert.Len(t, outcomes, 1)
+
+	outcomesActive, err := store.ListOutcomes(ctx, marketID, "active", 1, 10)
+	require.NoError(t, err)
+	assert.Len(t, outcomesActive, 1)
+
+	t.Run("filters", func(t *testing.T) {
+		eventsBySport, err := store.ListEvents(ctx, sportID, "", "", 1, 10)
+		require.NoError(t, err)
+		assert.Len(t, eventsBySport, 1)
+
+		eventsByStatus, err := store.ListEvents(ctx, "", "", "upcoming", 1, 10)
+		require.NoError(t, err)
+		assert.Len(t, eventsByStatus, 1)
+
+		eventsMissing, err := store.ListEvents(ctx, "", "", "live", 1, 10)
+		require.NoError(t, err)
+		assert.Len(t, eventsMissing, 0)
+	})
 }
 
-func TestPGStoreIdempotentUpsert(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
-	cleanTables(t, db)
-	store := NewPGStore(db)
+func TestInMemoryStoreIdempotentUpsert(t *testing.T) {
+	store := NewInMemoryStore()
 	ctx := context.Background()
 
 	id1, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "soccer", Name: "Soccer"})
-	if err != nil {
-		t.Fatalf("upsert 1: %v", err)
+	require.NoError(t, err)
+
+	id2, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "football", Name: "Football"})
+	require.NoError(t, err)
+	assert.Equal(t, id1, id2)
+
+	sports, err := store.ListSports(ctx, 1, 10)
+	require.NoError(t, err)
+	require.Len(t, sports, 1)
+	assert.Equal(t, "Football", sports[0].Name)
+	assert.Equal(t, "football", sports[0].Slug)
+}
+
+func TestInMemoryStorePagination(t *testing.T) {
+	store := NewInMemoryStore()
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		_, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: string(rune('a' + i)), Slug: "sport", Name: string(rune('A' + i))})
+		require.NoError(t, err)
 	}
-	id2, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "soccer", Name: "Soccer"})
-	if err != nil {
-		t.Fatalf("upsert 2: %v", err)
-	}
-	if id1 != id2 {
-		t.Fatalf("expected same id on upsert, got %s and %s", id1, id2)
-	}
+
+	page, err := store.ListSports(ctx, 1, 2)
+	require.NoError(t, err)
+	assert.Len(t, page, 2)
+
+	page2, err := store.ListSports(ctx, 2, 2)
+	require.NoError(t, err)
+	assert.Len(t, page2, 2)
+
+	page3, err := store.ListSports(ctx, 3, 2)
+	require.NoError(t, err)
+	assert.Len(t, page3, 1)
+
+	page0, err := store.ListSports(ctx, 0, 2)
+	require.NoError(t, err)
+	assert.Len(t, page0, 2)
+}
+
+func TestInMemoryStoreListLiveScores(t *testing.T) {
+	store := NewInMemoryStore()
+	ctx := context.Background()
+
+	sportID, err := store.UpsertSport(ctx, Sport{Provider: "mock", ProviderSportID: "sp-1", Slug: "soccer", Name: "Soccer"})
+	require.NoError(t, err)
+	leagueID, err := store.UpsertLeague(ctx, League{Provider: "mock", ProviderLeagueID: "lg-1", SportID: sportID, Name: "League A", Country: "A"})
+	require.NoError(t, err)
+
+	_, err = store.UpsertEvent(ctx, Event{
+		Provider: "mock", ProviderEventID: "ev-live", LeagueID: leagueID, SportID: sportID,
+		HomeParticipant: "A", AwayParticipant: "B", StartsAt: time.Now(), Status: "live",
+	})
+	require.NoError(t, err)
+	_, err = store.UpsertEvent(ctx, Event{
+		Provider: "mock", ProviderEventID: "ev-upcoming", LeagueID: leagueID, SportID: sportID,
+		HomeParticipant: "C", AwayParticipant: "D", StartsAt: time.Now().Add(time.Hour), Status: "upcoming",
+	})
+	require.NoError(t, err)
+
+	live, err := store.ListLiveScores(ctx, sportID, leagueID, 1, 10)
+	require.NoError(t, err)
+	assert.Len(t, live, 1)
+	assert.Equal(t, "live", live[0].Status)
 }
