@@ -111,7 +111,7 @@ git commit -m "feat(oddsfeed): add gRPC protobuf contract"
 - [ ] **Step 1: Write up migration**
 
 ```sql
-CREATE TABLE IF NOT EXISTS sports (
+CREATE TABLE sports (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,
   provider_sport_id text NOT NULL,
@@ -122,11 +122,11 @@ CREATE TABLE IF NOT EXISTS sports (
   UNIQUE(provider, provider_sport_id)
 );
 
-CREATE TABLE IF NOT EXISTS leagues (
+CREATE TABLE leagues (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,
   provider_league_id text NOT NULL,
-  sport_id uuid NOT NULL REFERENCES sports(id),
+  sport_id uuid NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
   name text NOT NULL,
   country text,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -134,12 +134,12 @@ CREATE TABLE IF NOT EXISTS leagues (
   UNIQUE(provider, provider_league_id)
 );
 
-CREATE TABLE IF NOT EXISTS events (
+CREATE TABLE events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,
   provider_event_id text NOT NULL,
-  league_id uuid NOT NULL REFERENCES leagues(id),
-  sport_id uuid NOT NULL REFERENCES sports(id),
+  league_id uuid NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+  sport_id uuid NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
   home_participant text NOT NULL,
   away_participant text NOT NULL,
   starts_at timestamptz NOT NULL,
@@ -152,15 +152,16 @@ CREATE TABLE IF NOT EXISTS events (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(provider, provider_event_id)
 );
-CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
-CREATE INDEX IF NOT EXISTS idx_events_starts_at ON events(starts_at);
-CREATE INDEX IF NOT EXISTS idx_events_sport_league ON events(sport_id, league_id);
 
-CREATE TABLE IF NOT EXISTS markets (
+CREATE INDEX idx_events_status ON events(status);
+CREATE INDEX idx_events_starts_at ON events(starts_at);
+CREATE INDEX idx_events_sport_league ON events(sport_id, league_id);
+
+CREATE TABLE markets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,
   provider_market_id text NOT NULL,
-  event_id uuid NOT NULL REFERENCES events(id),
+  event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   type text NOT NULL,
   name text NOT NULL,
   line text,
@@ -170,13 +171,14 @@ CREATE TABLE IF NOT EXISTS markets (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(provider, provider_market_id)
 );
-CREATE INDEX IF NOT EXISTS idx_markets_event_id ON markets(event_id);
 
-CREATE TABLE IF NOT EXISTS outcomes (
+CREATE INDEX idx_markets_event_id ON markets(event_id);
+
+CREATE TABLE outcomes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,
   provider_outcome_id text NOT NULL,
-  market_id uuid NOT NULL REFERENCES markets(id),
+  market_id uuid NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
   name text NOT NULL,
   odds text NOT NULL,
   status text NOT NULL CHECK (status IN ('active', 'suspended', 'won', 'lost', 'cancelled')),
@@ -185,17 +187,19 @@ CREATE TABLE IF NOT EXISTS outcomes (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(provider, provider_outcome_id)
 );
-CREATE INDEX IF NOT EXISTS idx_outcomes_market_id ON outcomes(market_id);
 
-CREATE TABLE IF NOT EXISTS odds_snapshots (
+CREATE INDEX idx_outcomes_market_id ON outcomes(market_id);
+
+CREATE TABLE odds_snapshots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id uuid NOT NULL REFERENCES events(id),
-  market_id uuid NOT NULL REFERENCES markets(id),
+  event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  market_id uuid NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
   snapshot_at timestamptz NOT NULL DEFAULT now(),
   odds jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_odds_snapshots_event ON odds_snapshots(event_id, snapshot_at);
+
+CREATE INDEX idx_odds_snapshots_event ON odds_snapshots(event_id, snapshot_at);
 ```
 
 - [ ] **Step 2: Write down migration**
