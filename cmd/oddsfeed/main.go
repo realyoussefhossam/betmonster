@@ -64,6 +64,12 @@ func main() {
 
 	go startHealthServer(logger, cfg.Port)
 
+	for _, name := range providerNames {
+		if err := svc.SyncProvider(context.Background(), name); err != nil {
+			logger.Error("initial sync failed", slog.String("provider", name), slog.String("error", err.Error()))
+		}
+	}
+
 	scheduler := oddsfeed.NewScheduler(svc, providerNames, time.Duration(cfg.SyncIntervalSeconds)*time.Second, logger)
 	go scheduler.Start(context.Background())
 

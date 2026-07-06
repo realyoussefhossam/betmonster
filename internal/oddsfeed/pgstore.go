@@ -46,16 +46,20 @@ func parseUUID(s string) (uuid.UUID, error) {
 }
 
 func (s *PGStore) UpsertSport(ctx context.Context, sp Sport) (string, error) {
+	sportUUID, err := uuid.Parse(sp.ID)
+	if err != nil {
+		return "", fmt.Errorf("upsert sport: invalid id uuid: %w", err)
+	}
 	var id string
-	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO sports (provider, provider_sport_id, slug, name)
-		VALUES ($1, $2, $3, $4)
+	err = s.db.QueryRowContext(ctx, `
+		INSERT INTO sports (id, provider, provider_sport_id, slug, name)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (provider, provider_sport_id) DO UPDATE SET
 			slug = EXCLUDED.slug,
 			name = EXCLUDED.name,
 			updated_at = now()
 		RETURNING id
-	`, sp.Provider, sp.ProviderSportID, sp.Slug, sp.Name).Scan(&id)
+	`, sportUUID, sp.Provider, sp.ProviderSportID, sp.Slug, sp.Name).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("upsert sport: %w", err)
 	}
@@ -63,21 +67,25 @@ func (s *PGStore) UpsertSport(ctx context.Context, sp Sport) (string, error) {
 }
 
 func (s *PGStore) UpsertLeague(ctx context.Context, l League) (string, error) {
+	leagueUUID, err := uuid.Parse(l.ID)
+	if err != nil {
+		return "", fmt.Errorf("upsert league: invalid id uuid: %w", err)
+	}
 	sportUUID, err := parseUUID(l.SportID)
 	if err != nil {
 		return "", fmt.Errorf("upsert league: invalid sport uuid: %w", err)
 	}
 	var id string
 	err = s.db.QueryRowContext(ctx, `
-		INSERT INTO leagues (provider, provider_league_id, sport_id, name, country)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO leagues (id, provider, provider_league_id, sport_id, name, country)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (provider, provider_league_id) DO UPDATE SET
 			sport_id = EXCLUDED.sport_id,
 			name = EXCLUDED.name,
 			country = EXCLUDED.country,
 			updated_at = now()
 		RETURNING id
-	`, l.Provider, l.ProviderLeagueID, sportUUID, l.Name, l.Country).Scan(&id)
+	`, leagueUUID, l.Provider, l.ProviderLeagueID, sportUUID, l.Name, l.Country).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("upsert league: %w", err)
 	}
@@ -85,6 +93,10 @@ func (s *PGStore) UpsertLeague(ctx context.Context, l League) (string, error) {
 }
 
 func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
+	eventUUID, err := uuid.Parse(e.ID)
+	if err != nil {
+		return "", fmt.Errorf("upsert event: invalid id uuid: %w", err)
+	}
 	leagueUUID, err := parseUUID(e.LeagueID)
 	if err != nil {
 		return "", fmt.Errorf("upsert event: invalid league uuid: %w", err)
@@ -96,7 +108,7 @@ func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
 	var id string
 	scoreUpdated := sql.NullTime{Time: e.ScoreUpdatedAt, Valid: !e.ScoreUpdatedAt.IsZero()}
 	err = s.db.QueryRowContext(ctx, `
-		INSERT INTO events (provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata)
+		INSERT INTO events (id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (provider, provider_event_id) DO UPDATE SET
 			league_id = EXCLUDED.league_id,
@@ -111,7 +123,7 @@ func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
 			metadata = EXCLUDED.metadata,
 			updated_at = now()
 		RETURNING id
-	`, e.Provider, e.ProviderEventID, leagueUUID, sportUUID, e.HomeParticipant, e.AwayParticipant, e.StartsAt, e.Status, e.HomeScore, e.AwayScore, scoreUpdated, e.Metadata).Scan(&id)
+	`, eventUUID, e.Provider, e.ProviderEventID, leagueUUID, sportUUID, e.HomeParticipant, e.AwayParticipant, e.StartsAt, e.Status, e.HomeScore, e.AwayScore, scoreUpdated, e.Metadata).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("upsert event: %w", err)
 	}
@@ -119,14 +131,18 @@ func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
 }
 
 func (s *PGStore) UpsertMarket(ctx context.Context, m Market) (string, error) {
+	marketUUID, err := uuid.Parse(m.ID)
+	if err != nil {
+		return "", fmt.Errorf("upsert market: invalid id uuid: %w", err)
+	}
 	eventUUID, err := parseUUID(m.EventID)
 	if err != nil {
 		return "", fmt.Errorf("upsert market: invalid event uuid: %w", err)
 	}
 	var id string
 	err = s.db.QueryRowContext(ctx, `
-		INSERT INTO markets (provider, provider_market_id, event_id, type, name, line, status, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO markets (id, provider, provider_market_id, event_id, type, name, line, status, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (provider, provider_market_id) DO UPDATE SET
 			event_id = EXCLUDED.event_id,
 			type = EXCLUDED.type,
@@ -136,7 +152,7 @@ func (s *PGStore) UpsertMarket(ctx context.Context, m Market) (string, error) {
 			metadata = EXCLUDED.metadata,
 			updated_at = now()
 		RETURNING id
-	`, m.Provider, m.ProviderMarketID, eventUUID, m.Type, m.Name, m.Line, m.Status, m.Metadata).Scan(&id)
+	`, marketUUID, m.Provider, m.ProviderMarketID, eventUUID, m.Type, m.Name, m.Line, m.Status, m.Metadata).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("upsert market: %w", err)
 	}
@@ -144,14 +160,18 @@ func (s *PGStore) UpsertMarket(ctx context.Context, m Market) (string, error) {
 }
 
 func (s *PGStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) {
+	outcomeUUID, err := uuid.Parse(o.ID)
+	if err != nil {
+		return "", fmt.Errorf("upsert outcome: invalid id uuid: %w", err)
+	}
 	marketUUID, err := parseUUID(o.MarketID)
 	if err != nil {
 		return "", fmt.Errorf("upsert outcome: invalid market uuid: %w", err)
 	}
 	var id string
 	err = s.db.QueryRowContext(ctx, `
-		INSERT INTO outcomes (provider, provider_outcome_id, market_id, name, odds, status, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO outcomes (id, provider, provider_outcome_id, market_id, name, odds, status, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (provider, provider_outcome_id) DO UPDATE SET
 			market_id = EXCLUDED.market_id,
 			name = EXCLUDED.name,
@@ -160,7 +180,7 @@ func (s *PGStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) 
 			metadata = EXCLUDED.metadata,
 			updated_at = now()
 		RETURNING id
-	`, o.Provider, o.ProviderOutcomeID, marketUUID, o.Name, o.Odds, o.Status, o.Metadata).Scan(&id)
+	`, outcomeUUID, o.Provider, o.ProviderOutcomeID, marketUUID, o.Name, o.Odds, o.Status, o.Metadata).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("upsert outcome: %w", err)
 	}
