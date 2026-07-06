@@ -45,7 +45,11 @@ func (p *Provider) SubscribeLive(ctx context.Context, sport string, updates chan
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			updates <- oddsfeed.Update{Provider: ProviderName, Type: "odds", EntityID: "mock-oc-1", Payload: map[string]string{"odds": "2.15"}}
+			select {
+			case updates <- oddsfeed.Update{Provider: ProviderName, Type: "odds", EntityID: "mock-oc-1", Payload: map[string]string{"odds": "2.15"}}:
+			default:
+				// drop if channel is full; caller is responsible for buffer size
+			}
 		}
 	}
 }

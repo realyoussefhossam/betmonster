@@ -72,9 +72,14 @@ type Update struct {
 	Payload  map[string]string
 }
 
+// FeedProvider fetches sports betting data from external sources.
 type FeedProvider interface {
-	Name() string
+	// FetchSnapshot returns a full normalized snapshot for the given sport.
 	FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*Snapshot, error)
+	// SubscribeLive streams real-time updates for the given sport. The caller must provide a buffered channel.
 	SubscribeLive(ctx context.Context, sport string, updates chan<- Update) error
+	// ValidateConfig checks whether the provider-specific configuration is valid.
 	ValidateConfig(cfg ProviderConfig) error
+	// Name returns the provider identifier.
+	Name() string
 }
