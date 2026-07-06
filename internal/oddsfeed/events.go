@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/nats-io/nats.go"
 )
@@ -17,11 +17,11 @@ type natsConn interface {
 // EventBus publishes feed events to NATS.
 type EventBus struct {
 	nc  natsConn
-	log *log.Logger
+	log *slog.Logger
 }
 
 // NewEventBus connects to a NATS server at the given URL.
-func NewEventBus(url string, log *log.Logger) (*EventBus, error) {
+func NewEventBus(url string, log *slog.Logger) (*EventBus, error) {
 	nc, err := nats.Connect(url)
 	if err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
@@ -39,7 +39,7 @@ func (b *EventBus) Publish(ctx context.Context, subject string, payload interfac
 		return fmt.Errorf("publish event: %w", err)
 	}
 	if b.log != nil {
-		b.log.Printf("published feed event: subject=%s", subject)
+		b.log.Debug("published feed event", slog.String("subject", subject))
 	}
 	return nil
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
-	"log"
+	"log/slog"
+	"os"
 	"testing"
 )
 
@@ -31,9 +31,11 @@ func (m *mockNatsConn) Publish(subj string, data []byte) error {
 
 func (m *mockNatsConn) Close() { m.closed = true }
 
+func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})) }
+
 func TestEventBusPublish(t *testing.T) {
 	mock := &mockNatsConn{}
-	bus := &EventBus{nc: mock, log: log.New(io.Discard, "", 0)}
+	bus := &EventBus{nc: mock, log: discardLogger()}
 	payload := map[string]string{"id": "event-123"}
 	if err := bus.Publish(context.Background(), "feed.event.updated", payload); err != nil {
 		t.Fatalf("publish: %v", err)
@@ -55,7 +57,7 @@ func TestEventBusPublish(t *testing.T) {
 
 func TestEventBusPublishReturnsUnderlyingError(t *testing.T) {
 	mock := &mockNatsConn{publishErr: errors.New("nats down")}
-	bus := &EventBus{nc: mock, log: log.New(io.Discard, "", 0)}
+	bus := &EventBus{nc: mock, log: discardLogger()}
 	if err := bus.Publish(context.Background(), "feed.event.updated", map[string]string{"id": "x"}); err == nil {
 		t.Fatalf("expected publish error")
 	}
@@ -63,7 +65,7 @@ func TestEventBusPublishReturnsUnderlyingError(t *testing.T) {
 
 func TestEventBusClose(t *testing.T) {
 	mock := &mockNatsConn{}
-	bus := &EventBus{nc: mock, log: log.New(io.Discard, "", 0)}
+	bus := &EventBus{nc: mock, log: discardLogger()}
 	bus.Close()
 	if !mock.closed {
 		t.Fatalf("expected close to be called")

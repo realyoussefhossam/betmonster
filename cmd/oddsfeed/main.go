@@ -1,0 +1,108 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"time"
+
+	"google.golang.org/grpc"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/jackc/pgx/v5/stdlib"
+
+	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/oddsfeed"
+	"github.com/realyoussefhossam/betmonster/internal/oddsfeed/providers/mock"
+	"github.com/realyoussefhossam/betmonster/internal/shared/config"
+	"github.com/realyoussefhossam/betmonster/internal/shared/logging"
+)
+
+func main() {
+	cfg := config.LoadOddsFeed()
+	logger := logging.New()
+
+	db, err := sql.Open("pgx", cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("failed to open database", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	if err := db.Ping(); err != nil {
+		logger.Error("failed to ping database", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	if err := runMigrations(cfg.DatabaseURL); err != nil {
+		logger.Error("failed to run migrations", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	store := oddsfeed.NewPGStore(db)
+	cache := oddsfeed.NewCache(cfg.RedisAddr, time.Duration(cfg.SyncIntervalSeconds)*time.Second)
+	bus, err := oddsfeed.NewEventBus(cfg.NATSURL, logger)
+	if err != nil {
+		logger.Error("failed to connect to nats", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer bus.Close()
+
+	providers := []oddsfeed.FeedProvider{mock.New()}
+	svc := oddsfeed.NewService(store, providers, cache, bus, logger)
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterOddsFeedServiceServer(grpcServer, oddsfeed.NewGRPCServer(svc))
+
+	go startHealthServer(logger, cfg.Port)
+
+	scheduler := oddsfeed.NewScheduler(svc, []string{"mock"}, time.Duration(cfg.SyncIntervalSeconds)*time.Second, logger)
+	go scheduler.Start(context.Background())
+
+	ws := oddsfeed.NewWebSocketWorker(svc, providers, logger)
+	go ws.Start(context.Background())
+
+	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
+	if err != nil {
+		logger.Error("failed to listen", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	logger.Info("oddsfeed gRPC starting", slog.String("addr", ":"+cfg.GRPCPort))
+	if err := grpcServer.Serve(listener); err != nil {
+		logger.Error("oddsfeed gRPC stopped", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+}
+
+func runMigrations(databaseURL string) error {
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	driver, err := pgx.WithInstance(db, &pgx.Config{})
+	if err != nil {
+		return err
+	}
+	m, err := migrate.NewWithDatabaseInstance("file://internal/oddsfeed/migrations", "pgx", driver)
+	if err != nil {
+		return err
+	}
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return err
+	}
+	return nil
+}
+
+func startHealthServer(logger *slog.Logger, port string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy","service":"oddsfeed"}`))
+	})
+	logger.Info("oddsfeed health starting", slog.String("port", port))
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		logger.Error("oddsfeed health stopped", slog.String("error", err.Error()))
+	}
+}
