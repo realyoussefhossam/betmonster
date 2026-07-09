@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -102,11 +103,12 @@ func TestHandleXcashWebhookParsesNestedAmount(t *testing.T) {
 	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	body := `{"type":"deposit","data":{"sys_no":"DXC1","uid":"u1","amount":"10","crypto":"USDT","chain":"anvil","confirmed":true,"hash":"0xabc","block":1,"risk_level":null,"risk_score":null}}`
-	sig := xcash.Sign("nonce"+"1234567890"+body, "hmac-key")
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	sig := xcash.Sign("nonce"+timestamp+body, "hmac-key")
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/xcash/deposit", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("XC-Nonce", "nonce")
-	req.Header.Set("XC-Timestamp", "1234567890")
+	req.Header.Set("XC-Timestamp", timestamp)
 	req.Header.Set("XC-Signature", sig)
 	w := httptest.NewRecorder()
 
