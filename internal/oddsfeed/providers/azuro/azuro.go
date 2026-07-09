@@ -165,7 +165,7 @@ func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[s
 		return nil, fmt.Errorf("azuro fetch sports: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("azuro fetch sports: status %d", resp.StatusCode)
 	}
 
@@ -242,7 +242,7 @@ func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[s
 		return nil, fmt.Errorf("azuro fetch conditions: %w", err)
 	}
 	defer postResp.Body.Close()
-	if postResp.StatusCode != http.StatusOK {
+	if postResp.StatusCode < 200 || postResp.StatusCode >= 300 {
 		return nil, fmt.Errorf("azuro fetch conditions: status %d", postResp.StatusCode)
 	}
 
