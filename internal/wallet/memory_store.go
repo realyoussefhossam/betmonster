@@ -96,6 +96,12 @@ func (s *memoryStore) DebitWallet(ctx context.Context, userID, currency, amount,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if referenceID != "" {
+		if existing, ok := s.txnByRef[referenceID]; ok {
+			return existing, nil
+		}
+	}
+
 	key := s.walletKey(userID, currency)
 	w, ok := s.wallets[key]
 	if !ok {
