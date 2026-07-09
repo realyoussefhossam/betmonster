@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 )
 
 // Service orchestrates provider sync, live cache updates, event publishing, and queries.
@@ -13,6 +14,7 @@ type Service struct {
 	cache     *Cache
 	bus       *EventBus
 	logger    *slog.Logger
+	syncMu    sync.Mutex
 }
 
 // NewService creates a new odds feed service.
@@ -25,7 +27,10 @@ func NewService(store Store, providers []FeedProvider, cache *Cache, bus *EventB
 }
 
 // SyncProvider fetches a full snapshot from the named provider and applies it to the store.
+// Concurrent calls are serialized to avoid overlapping syncs for the same provider.
 func (s *Service) SyncProvider(ctx context.Context, providerName string) error {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 	p, ok := s.providers[providerName]
 	if !ok {
 		return fmt.Errorf("unknown provider: %s", providerName)
