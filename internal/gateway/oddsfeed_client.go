@@ -2,8 +2,6 @@ package gateway
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,12 +14,9 @@ type OddsFeedClient struct {
 }
 
 func NewOddsFeedClient(addr string) (*OddsFeedClient, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return nil, fmt.Errorf("dial oddsfeed service: %w", err)
+		return nil, err
 	}
 	return &OddsFeedClient{conn: pb.NewOddsFeedServiceClient(conn)}, nil
 }

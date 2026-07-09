@@ -30,8 +30,7 @@ func main() {
 
 	oddsfeedClient, err := gateway.NewOddsFeedClient(cfg.OddsFeedServiceAddr)
 	if err != nil {
-		logger.Error("failed to connect oddsfeed service", slog.String("error", err.Error()))
-		os.Exit(1)
+		logger.Error("failed to connect oddsfeed service; will retry lazily", slog.String("error", err.Error()))
 	}
 
 	limiter := gateway.NewRateLimiter(cfg.RateLimitBackend, cfg.RedisAddr, cfg.RateLimitRPS, cfg.RateLimitBurst)
