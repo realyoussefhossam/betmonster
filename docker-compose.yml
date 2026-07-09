@@ -77,7 +77,7 @@ services:
       DATABASE_URL: postgres://wallet:wallet@postgres:5432/oddsfeed?sslmode=disable
       REDIS_ADDR: redis:6379
       NATS_URL: nats://nats:4222
-      PROVIDERS: ${ODDSFEED_PROVIDERS:-mock}
+      PROVIDERS: ${ODDSFEED_PROVIDERS:-azuro}
       AZURO_GRAPH_URL: ${ODDSFEED_AZURO_GRAPH_URL:-}
       AZURO_WS_URL: ${ODDSFEED_AZURO_WS_URL:-}
       AZURO_ENVIRONMENT: ${ODDSFEED_AZURO_ENVIRONMENT:-PolygonUSDT}
