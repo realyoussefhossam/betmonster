@@ -15,8 +15,8 @@ if command -v psql >/dev/null 2>&1; then
 else
   # Fall back to docker exec if psql is not installed locally. The container URL uses the
   # Postgres internal port (5432) while the host URL typically maps to 5433.
-  INTERNAL_URL="${TEST_DATABASE_URL/:5433/:5432}"
-  docker exec betmonster-postgres-1 psql "${INTERNAL_URL}" -c 'SELECT 1' >/dev/null 2>&1 || {
+  INTERNAL_URL="${TEST_DATABASE_INTERNAL_URL:-${TEST_DATABASE_URL/:5433/:5432}}"
+  docker exec "${POSTGRES_CONTAINER_NAME:-betmonster-postgres-1}" psql "${INTERNAL_URL}" -c 'SELECT 1' >/dev/null 2>&1 || {
     echo "Test database not reachable at ${TEST_DATABASE_URL}. Start Postgres and set TEST_DATABASE_URL if needed."
     exit 1
   }
