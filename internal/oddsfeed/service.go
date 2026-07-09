@@ -42,6 +42,37 @@ func (s *Service) SyncProvider(ctx context.Context, providerName string) error {
 	return s.applySnapshot(ctx, snap)
 }
 
+// ApplyUpdate applies a single incremental update from a provider (e.g. live odds change).
+func (s *Service) ApplyUpdate(ctx context.Context, u Update) error {
+	switch u.Type {
+	case "odds":
+		marketID, outcomeID, err := s.store.UpdateOutcomeOdds(ctx, u.Provider, u.EntityID, u.Payload["odds"])
+		if err != nil {
+			return fmt.Errorf("apply odds update: %w", err)
+		}
+		if s.cache != nil {
+			if err := s.cache.SetLiveOdds(ctx, marketID, map[string]string{outcomeID: u.Payload["odds"]}); err != nil {
+				s.logger.Warn("cache live odds", slog.String("error", err.Error()))
+			}
+		}
+		s.maybeEmit(ctx, "feed.odds.changed", outcomeID)
+	case "status":
+		marketID, err := s.store.UpdateMarketStatus(ctx, u.Provider, u.EntityID, u.Payload["status"])
+		if err == nil {
+			s.maybeEmit(ctx, "feed.market.updated", marketID)
+			return nil
+		}
+		marketID, outcomeID, err := s.store.UpdateOutcomeStatus(ctx, u.Provider, u.EntityID, u.Payload["status"])
+		if err != nil {
+			return fmt.Errorf("apply status update: %w", err)
+		}
+		s.maybeEmit(ctx, "feed.odds.changed", outcomeID)
+	default:
+		return fmt.Errorf("unknown update type: %s", u.Type)
+	}
+	return nil
+}
+
 func (s *Service) applySnapshot(ctx context.Context, snap *Snapshot) error {
 	sports, leagues, events, markets, outcomes, err := NormalizeSnapshot(snap)
 	if err != nil {

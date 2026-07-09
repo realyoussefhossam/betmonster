@@ -187,6 +187,57 @@ func (s *PGStore) UpsertOutcome(ctx context.Context, o Outcome) (string, error) 
 	return id, nil
 }
 
+func (s *PGStore) UpdateOutcomeOdds(ctx context.Context, provider, providerOutcomeID, odds string) (string, string, error) {
+	var marketID, outcomeID string
+	err := s.db.QueryRowContext(ctx, `
+		UPDATE outcomes
+		SET odds = $3, updated_at = now()
+		WHERE provider = $1 AND provider_outcome_id = $2
+		RETURNING id, market_id
+	`, provider, providerOutcomeID, odds).Scan(&outcomeID, &marketID)
+	if err == sql.ErrNoRows {
+		return "", "", fmt.Errorf("update outcome odds: not found")
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("update outcome odds: %w", err)
+	}
+	return marketID, outcomeID, nil
+}
+
+func (s *PGStore) UpdateMarketStatus(ctx context.Context, provider, providerMarketID, status string) (string, error) {
+	var marketID string
+	err := s.db.QueryRowContext(ctx, `
+		UPDATE markets
+		SET status = $3, updated_at = now()
+		WHERE provider = $1 AND provider_market_id = $2
+		RETURNING id
+	`, provider, providerMarketID, status).Scan(&marketID)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("update market status: not found")
+	}
+	if err != nil {
+		return "", fmt.Errorf("update market status: %w", err)
+	}
+	return marketID, nil
+}
+
+func (s *PGStore) UpdateOutcomeStatus(ctx context.Context, provider, providerOutcomeID, status string) (string, string, error) {
+	var marketID, outcomeID string
+	err := s.db.QueryRowContext(ctx, `
+		UPDATE outcomes
+		SET status = $3, updated_at = now()
+		WHERE provider = $1 AND provider_outcome_id = $2
+		RETURNING id, market_id
+	`, provider, providerOutcomeID, status).Scan(&outcomeID, &marketID)
+	if err == sql.ErrNoRows {
+		return "", "", fmt.Errorf("update outcome status: not found")
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("update outcome status: %w", err)
+	}
+	return marketID, outcomeID, nil
+}
+
 func (s *PGStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) {
 	if page <= 0 {
 		page = 1

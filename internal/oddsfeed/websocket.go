@@ -30,9 +30,28 @@ func (w *WebSocketWorker) runProvider(ctx context.Context, name string, p FeedPr
 	for {
 		w.logger.Info("websocket subscribing", slog.String("provider", name))
 		updates := make(chan Update, 100)
-		if err := p.SubscribeLive(ctx, "", updates); err != nil {
-			w.logger.Error("websocket error", slog.String("provider", name), slog.String("error", err.Error()))
+		subErr := make(chan error, 1)
+		go func() {
+			subErr <- p.SubscribeLive(ctx, "", updates)
+		}()
+
+	loop:
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err := <-subErr:
+				if err != nil {
+					w.logger.Error("websocket error", slog.String("provider", name), slog.String("error", err.Error()))
+				}
+				break loop
+			case u := <-updates:
+				if err := w.service.ApplyUpdate(ctx, u); err != nil {
+					w.logger.Error("apply live update", slog.String("provider", name), slog.String("error", err.Error()))
+				}
+			}
 		}
+
 		select {
 		case <-ctx.Done():
 			return

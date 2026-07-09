@@ -2,6 +2,7 @@ package oddsfeed
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -159,6 +160,45 @@ func (s *memoryStore) UpsertOutcome(ctx context.Context, o Outcome) (string, err
 	o.UpdatedAt = o.CreatedAt
 	s.outcomes[key] = &o
 	return o.ID, nil
+}
+
+func (s *memoryStore) UpdateOutcomeOdds(ctx context.Context, provider, providerOutcomeID, odds string) (string, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := outcomeKey(provider, providerOutcomeID)
+	o, ok := s.outcomes[key]
+	if !ok {
+		return "", "", fmt.Errorf("update outcome odds: not found")
+	}
+	o.Odds = odds
+	o.UpdatedAt = now()
+	return o.MarketID, o.ID, nil
+}
+
+func (s *memoryStore) UpdateMarketStatus(ctx context.Context, provider, providerMarketID, status string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := marketKey(provider, providerMarketID)
+	m, ok := s.markets[key]
+	if !ok {
+		return "", fmt.Errorf("update market status: not found")
+	}
+	m.Status = status
+	m.UpdatedAt = now()
+	return m.ID, nil
+}
+
+func (s *memoryStore) UpdateOutcomeStatus(ctx context.Context, provider, providerOutcomeID, status string) (string, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := outcomeKey(provider, providerOutcomeID)
+	o, ok := s.outcomes[key]
+	if !ok {
+		return "", "", fmt.Errorf("update outcome status: not found")
+	}
+	o.Status = status
+	o.UpdatedAt = now()
+	return o.MarketID, o.ID, nil
 }
 
 func (s *memoryStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) {
