@@ -268,13 +268,17 @@ func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[s
 		})
 
 		for _, out := range cond.Outcomes {
+			// Azuro outcome IDs are scoped to a condition, so compose a unique provider ID.
+			outcomeProviderID := fmt.Sprintf("%s:%s", marketID, out.OutcomeID)
 			snap.Outcomes = append(snap.Outcomes, oddsfeed.OutcomeSnapshot{
-				ProviderID: out.OutcomeID,
+				ProviderID: outcomeProviderID,
 				MarketID:   marketID,
 				Name:       out.Title,
 				Odds:       out.Odds,
 				Status:     normalizeOutcomeState(out.State),
-				Metadata:   map[string]string{},
+				Metadata: map[string]string{
+					"azuro_outcome_id": out.OutcomeID,
+				},
 			})
 		}
 	}
