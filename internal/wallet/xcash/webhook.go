@@ -35,11 +35,6 @@ func (v *WebhookValidator) WithRedis(r redis.Cmdable) *WebhookValidator {
 	return v
 }
 
-func (v *WebhookValidator) WithWindow(window time.Duration) *WebhookValidator {
-	v.window = window
-	return v
-}
-
 func (v *WebhookValidator) Validate(body []byte, headers map[string]string) (*DepositWebhook, error) {
 	nonce := headers["XC-Nonce"]
 	timestamp := headers["XC-Timestamp"]
