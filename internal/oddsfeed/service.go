@@ -71,6 +71,22 @@ func (s *Service) SyncProvider(ctx context.Context, providerName string) error {
 	return s.applyMarkets(ctx, markets, outcomes)
 }
 
+// SyncLiveProvider fetches a live snapshot from the named provider and applies it to the store.
+func (s *Service) SyncLiveProvider(ctx context.Context, providerName string) error {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	p, ok := s.providers[providerName]
+	if !ok {
+		return fmt.Errorf("unknown provider: %s", providerName)
+	}
+
+	snap, err := p.FetchSnapshot(ctx, "", map[string]string{"game_state": "Live"})
+	if err != nil {
+		return fmt.Errorf("fetch live snapshot: %w", err)
+	}
+	return s.applySnapshot(ctx, snap)
+}
+
 // changedEventIDs returns the provider event IDs that need fresh conditions.
 // We refetch conditions for new events, live events, and events whose status changed.
 func changedEventIDs(events []Event, existing map[string]string) []string {

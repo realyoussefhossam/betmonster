@@ -2,6 +2,10 @@ package azuro
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/realyoussefhossam/betmonster/internal/oddsfeed"
@@ -53,5 +57,29 @@ func TestSubscribeLiveWithoutWSURL(t *testing.T) {
 	cancel()
 	if err := p.SubscribeLive(ctx, "", make(chan oddsfeed.Update)); err == nil {
 		t.Fatal("expected error when websocket URL not configured")
+	}
+}
+
+func TestAzuroHierarchyURL(t *testing.T) {
+	var gotURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotURL = r.URL.String()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sportsResponse{Sports: []sport{}})
+	}))
+	defer srv.Close()
+
+	p := New(srv.URL, "", "PolygonUSDT")
+	if _, err := p.FetchHierarchy(context.Background(), "", nil); err != nil {
+		t.Fatalf("fetch hierarchy: %v", err)
+	}
+	if !strings.Contains(gotURL, "numberOfGames=100") {
+		t.Fatalf("expected URL to contain numberOfGames=100, got %s", gotURL)
+	}
+	if !strings.Contains(gotURL, "orderDirection=desc") {
+		t.Fatalf("expected URL to contain orderDirection=desc, got %s", gotURL)
+	}
+	if strings.Contains(gotURL, "orderDirection=asc") {
+		t.Fatalf("expected URL not to contain orderDirection=asc, got %s", gotURL)
 	}
 }

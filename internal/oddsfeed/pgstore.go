@@ -238,6 +238,15 @@ func (s *PGStore) UpdateOutcomeStatus(ctx context.Context, provider, providerOut
 	return marketID, outcomeID, nil
 }
 
+func (s *PGStore) UpdateEventStatus(ctx context.Context, provider, providerEventID, status string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE events
+		SET status = $1, updated_at = now()
+		WHERE provider = $2 AND provider_event_id = $3
+	`, status, provider, providerEventID)
+	return err
+}
+
 func (s *PGStore) GetEventStatusesByProvider(ctx context.Context, provider string) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT provider_event_id, status FROM events WHERE provider = $1`, provider)
 	if err != nil {

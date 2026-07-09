@@ -55,10 +55,10 @@ type sportsResponse struct {
 }
 
 type sport struct {
-	ID      int        `json:"id"`
-	Slug    string     `json:"slug"`
-	Name    string     `json:"name"`
-	SportID string     `json:"sportId"`
+	ID        int       `json:"id"`
+	Slug      string    `json:"slug"`
+	Name      string    `json:"name"`
+	SportID   string    `json:"sportId"`
 	Countries []country `json:"countries"`
 }
 
@@ -69,20 +69,20 @@ type country struct {
 }
 
 type league struct {
-	Slug   string `json:"slug"`
-	Name   string `json:"name"`
-	Games  []game `json:"games"`
+	Slug  string `json:"slug"`
+	Name  string `json:"name"`
+	Games []game `json:"games"`
 }
 
 type game struct {
-	GameID    string        `json:"gameId"`
-	Slug      string        `json:"slug"`
-	Title     string        `json:"title"`
-	StartsAt  string        `json:"startsAt"`
-	State     string        `json:"state"`
-	Sport     sportRef      `json:"sport"`
-	League    leagueRef     `json:"league"`
-	Country   countryRef    `json:"country"`
+	GameID       string        `json:"gameId"`
+	Slug         string        `json:"slug"`
+	Title        string        `json:"title"`
+	StartsAt     string        `json:"startsAt"`
+	State        string        `json:"state"`
+	Sport        sportRef      `json:"sport"`
+	League       leagueRef     `json:"league"`
+	Country      countryRef    `json:"country"`
 	Participants []participant `json:"participants"`
 }
 
@@ -123,15 +123,15 @@ type condition struct {
 }
 
 type gameRef struct {
-	GameID string  `json:"gameId"`
+	GameID string   `json:"gameId"`
 	Sport  sportRef `json:"sport"`
 }
 
 type outcome struct {
-	Title    string `json:"title"`
+	Title     string `json:"title"`
 	OutcomeID string `json:"outcomeId"`
-	Odds     string `json:"odds"`
-	State    string `json:"state"`
+	Odds      string `json:"odds"`
+	State     string `json:"state"`
 }
 
 func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*oddsfeed.Snapshot, error) {
@@ -252,7 +252,7 @@ func (p *Provider) SubscribeLive(ctx context.Context, sport string, updates chan
 // fetchSports calls Azuro's /market-manager/sports endpoint.
 func (p *Provider) fetchSports(ctx context.Context, sportSlug, gameState string) (sportsResponse, error) {
 	var empty sportsResponse
-	reqURL := fmt.Sprintf("%s/market-manager/sports?environment=%s&gameState=%s&numberOfGames=10&orderBy=turnover&orderDirection=asc",
+	reqURL := fmt.Sprintf("%s/market-manager/sports?environment=%s&gameState=%s&numberOfGames=100&orderBy=turnover&orderDirection=desc",
 		p.baseURL, p.environment, gameState)
 	if sportSlug != "" {
 		reqURL += "&sportSlug=" + urlEncode(sportSlug)

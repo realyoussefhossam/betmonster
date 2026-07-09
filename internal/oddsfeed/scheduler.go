@@ -32,6 +32,9 @@ func (sch *Scheduler) Start(ctx context.Context) {
 				if err := sch.service.SyncProvider(ctx, p); err != nil {
 					sch.logger.Error("sync provider failed", slog.String("provider", p), slog.String("error", err.Error()))
 				}
+				if err := sch.service.SyncLiveProvider(ctx, p); err != nil {
+					sch.logger.Error("sync live provider failed", slog.String("provider", p), slog.String("error", err.Error()))
+				}
 			}
 		}
 	}
