@@ -6,7 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/shared/grpcmeta"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
 )
 
@@ -19,6 +25,34 @@ func defaultFiat(reqFiat string) string {
 		fiat = "USD"
 	}
 	return fiat
+}
+
+type userIDRequest interface {
+	GetUserId() string
+}
+
+// AuthInterceptor is a gRPC unary interceptor that requires every incoming
+// request to include the authenticated caller's identity as metadata. For
+// user-scoped requests, the metadata user id must also match the protobuf
+// request's user id field.
+func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing caller metadata")
+	}
+	userIDs := md.Get(grpcmeta.UserIDHeader)
+	if len(userIDs) == 0 || userIDs[0] == "" {
+		return nil, status.Error(codes.Unauthenticated, "missing caller user id")
+	}
+	callerID := userIDs[0]
+
+	if reqWithUser, ok := req.(userIDRequest); ok {
+		if reqUserID := reqWithUser.GetUserId(); reqUserID != "" && reqUserID != callerID {
+			return nil, status.Error(codes.PermissionDenied, "caller user id does not match request user id")
+		}
+	}
+
+	return handler(ctx, req)
 }
 
 type GRPCServer struct {

@@ -82,7 +82,7 @@ func main() {
 		rates.NewKuCoin(),
 	)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(wallet.AuthInterceptor))
 	proto.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, aggregator))
 
 	go startHealthServer(logger, cfg.Port)
