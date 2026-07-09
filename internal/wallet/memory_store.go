@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -68,7 +69,10 @@ func (s *memoryStore) CreditWallet(ctx context.Context, userID, currency, amount
 		}
 	}
 	w := s.createWallet(userID, currency)
-	newBalance := addDecimal(w.Balance, amount)
+	newBalance, err := addDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("credit wallet: %w", err)
+	}
 	txn := &Transaction{
 		ID:            uuid.NewString(),
 		UserID:        userID,
@@ -114,7 +118,10 @@ func (s *memoryStore) DebitWallet(ctx context.Context, userID, currency, amount,
 		return nil, errors.New("insufficient balance")
 	}
 
-	newBalance := subDecimal(w.Balance, amount)
+	newBalance, err := subDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("debit wallet: %w", err)
+	}
 	txn := &Transaction{
 		ID:            uuid.NewString(),
 		UserID:        userID,
@@ -185,7 +192,10 @@ func (s *memoryStore) RequestWithdrawal(ctx context.Context, userID, currency, a
 		return nil, ErrInsufficientBalance
 	}
 
-	newBalance := subDecimal(w.Balance, amount)
+	newBalance, err := subDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("debit wallet for withdrawal: %w", err)
+	}
 	w.Balance = newBalance
 	w.Version++
 	w.UpdatedAt = time.Now()
@@ -266,7 +276,10 @@ func (s *memoryStore) RejectWithdrawal(ctx context.Context, id, reviewedBy strin
 	}
 
 	balanceBefore := w.Balance
-	reversedBalance := addDecimal(w.Balance, req.Amount)
+	reversedBalance, err := addDecimal(w.Balance, req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("reverse withdrawal debit: %w", err)
+	}
 	w.Balance = reversedBalance
 	w.Version++
 	w.UpdatedAt = time.Now()
