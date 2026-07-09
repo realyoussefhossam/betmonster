@@ -28,6 +28,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	oddsfeedClient, err := gateway.NewOddsFeedClient(cfg.OddsFeedServiceAddr)
+	if err != nil {
+		logger.Error("failed to connect oddsfeed service", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	limiter := gateway.NewRateLimiter(cfg.RateLimitBackend, cfg.RedisAddr, cfg.RateLimitRPS, cfg.RateLimitBurst)
 	defer limiter.Close()
 	if cfg.RateLimitBackend == "redis" {
@@ -46,7 +52,7 @@ func main() {
 		DailyWithdrawal: cfg.DailyWithdrawal,
 	}
 
-	server := gateway.NewServer(logger, walletClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains, cfg.SupportedPairs, limits)
+	server := gateway.NewServer(logger, walletClient, oddsfeedClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains, cfg.SupportedPairs, limits)
 	logger.Info("gateway starting", slog.String("port", cfg.Port))
 	if err := http.ListenAndServe(":"+cfg.Port, server.Router()); err != nil {
 		logger.Error("gateway stopped", slog.String("error", err.Error()))

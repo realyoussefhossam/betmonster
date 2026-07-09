@@ -23,7 +23,7 @@ import (
 
 func TestHealthHandler(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
+	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
@@ -35,7 +35,7 @@ func TestHealthHandler(t *testing.T) {
 
 func TestSupportedOptions(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT,USDC", "anvil,base", "", Limits{})
+	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT,USDC", "anvil,base", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/supported", nil)
 	w := httptest.NewRecorder()
 
@@ -50,7 +50,7 @@ func TestSupportedOptions(t *testing.T) {
 
 func TestHandleBalanceUnsupportedCurrency(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
+	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/balance?currency=BTC", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-1"}))
 	w := httptest.NewRecorder()
@@ -63,7 +63,7 @@ func TestHandleBalanceUnsupportedCurrency(t *testing.T) {
 
 func TestHandleDepositAddressUnsupportedPair(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/deposit-address?currency=BNB&chain=anvil", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-1"}))
 	w := httptest.NewRecorder()
@@ -99,7 +99,7 @@ func TestHandleXcashWebhookParsesNestedAmount(t *testing.T) {
 	defer conn.Close()
 
 	walletClient := &WalletClient{conn: pb.NewWalletServiceClient(conn)}
-	srv := NewServer(logger, walletClient, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	body := `{"type":"deposit","data":{"sys_no":"DXC1","uid":"u1","amount":"10","crypto":"USDT","chain":"anvil","confirmed":true,"hash":"0xabc","block":1,"risk_level":null,"risk_score":null}}`
 	sig := xcash.Sign("nonce"+"1234567890"+body, "hmac-key")
@@ -142,7 +142,7 @@ func TestHandleRatesPublicEndpoint(t *testing.T) {
 	defer conn.Close()
 
 	walletClient := &WalletClient{conn: pb.NewWalletServiceClient(conn)}
-	srv := NewServer(logger, walletClient, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/rates", nil)
 	w := httptest.NewRecorder()

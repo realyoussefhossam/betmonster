@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/realyoussefhossam/betmonster/internal/auth"
@@ -18,6 +19,7 @@ import (
 type Server struct {
 	logger              *slog.Logger
 	wallet              *WalletClient
+	oddsfeed            *OddsFeedClient
 	jwksClient          *auth.JWKSClient
 	limiter             *RateLimiter
 	adminUserIDs        map[string]struct{}
@@ -29,7 +31,7 @@ type Server struct {
 	limits              Limits
 }
 
-func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains, supportedPairs string, limits Limits) *Server {
+func NewServer(logger *slog.Logger, wallet *WalletClient, oddsfeed *OddsFeedClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains, supportedPairs string, limits Limits) *Server {
 	admins := map[string]struct{}{}
 	for _, id := range strings.Split(adminUserIDs, ",") {
 		id = strings.TrimSpace(id)
@@ -62,6 +64,7 @@ func NewServer(logger *slog.Logger, wallet *WalletClient, jwksClient *auth.JWKSC
 	return &Server{
 		logger:              logger,
 		wallet:              wallet,
+		oddsfeed:            oddsfeed,
 		jwksClient:          jwksClient,
 		limiter:             limiter,
 		adminUserIDs:        admins,
@@ -174,6 +177,15 @@ func (s *Server) Router() http.Handler {
 	mux.Handle("/api/admin/withdrawals", server.WithRoutePattern("/api/admin/withdrawals", s.auth(s.admin(http.HandlerFunc(s.handleListPendingWithdrawals)))))
 	mux.Handle("/api/admin/withdrawals/review", server.WithRoutePattern("/api/admin/withdrawals/review", s.auth(s.admin(http.HandlerFunc(s.handleReviewWithdrawal)))))
 	mux.Handle("/webhooks/xcash/deposit", server.WithRoutePattern("/webhooks/xcash/deposit", http.HandlerFunc(s.handleXcashWebhook)))
+
+	mux.Handle("/api/sports", server.WithRoutePattern("/api/sports", http.HandlerFunc(s.handleListSports)))
+	mux.Handle("/api/sports/{sport_id}/leagues", server.WithRoutePattern("/api/sports/{sport_id}/leagues", http.HandlerFunc(s.handleListLeagues)))
+	mux.Handle("/api/events", server.WithRoutePattern("/api/events", http.HandlerFunc(s.handleListEvents)))
+	mux.Handle("/api/events/{event_id}", server.WithRoutePattern("/api/events/{event_id}", http.HandlerFunc(s.handleGetEvent)))
+	mux.Handle("/api/events/{event_id}/markets", server.WithRoutePattern("/api/events/{event_id}/markets", http.HandlerFunc(s.handleListMarkets)))
+	mux.Handle("/api/markets/{market_id}/outcomes", server.WithRoutePattern("/api/markets/{market_id}/outcomes", http.HandlerFunc(s.handleListOutcomes)))
+	mux.Handle("/api/live/events", server.WithRoutePattern("/api/live/events", http.HandlerFunc(s.handleListLiveEvents)))
+
 	return server.RequestID(server.Logging(s.logger, server.Metrics(s.limiter.Middleware(s.cors(mux)))))
 }
 
@@ -456,6 +468,96 @@ func (s *Server) writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 
 	json.NewEncoder(w).Encode(v)
+}
+
+func (s *Server) handleListSports(w http.ResponseWriter, r *http.Request) {
+	page, pageSize := pagination(r)
+	resp, err := s.oddsfeed.ListSports(r.Context(), page, pageSize)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleListLeagues(w http.ResponseWriter, r *http.Request) {
+	sportID := r.PathValue("sport_id")
+	page, pageSize := pagination(r)
+	resp, err := s.oddsfeed.ListLeagues(r.Context(), sportID, page, pageSize)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, pageSize := pagination(r)
+	resp, err := s.oddsfeed.ListEvents(r.Context(), q.Get("sport_id"), q.Get("league_id"), q.Get("status"), page, pageSize)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleGetEvent(w http.ResponseWriter, r *http.Request) {
+	resp, err := s.oddsfeed.GetEvent(r.Context(), r.PathValue("event_id"))
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if resp.Event == nil {
+		s.writeError(w, http.StatusNotFound, fmt.Errorf("event not found"))
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleListMarkets(w http.ResponseWriter, r *http.Request) {
+	page, pageSize := pagination(r)
+	status := r.URL.Query().Get("status")
+	resp, err := s.oddsfeed.ListMarkets(r.Context(), r.PathValue("event_id"), status, page, pageSize)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleListOutcomes(w http.ResponseWriter, r *http.Request) {
+	page, pageSize := pagination(r)
+	status := r.URL.Query().Get("status")
+	resp, err := s.oddsfeed.ListOutcomes(r.Context(), r.PathValue("market_id"), status, page, pageSize)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleListLiveEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, pageSize := pagination(r)
+	resp, err := s.oddsfeed.ListLiveScores(r.Context(), q.Get("sport_id"), q.Get("league_id"), page, pageSize)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func pagination(r *http.Request) (int, int) {
+	page := 1
+	pageSize := 20
+	if v, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && v > 0 {
+		page = v
+	}
+	if v, err := strconv.Atoi(r.URL.Query().Get("page_size")); err == nil && v > 0 {
+		pageSize = v
+	}
+	return page, pageSize
 }
 
 func (s *Server) writeError(w http.ResponseWriter, status int, err error) {

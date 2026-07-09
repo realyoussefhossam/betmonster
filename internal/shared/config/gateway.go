@@ -6,24 +6,25 @@ import (
 )
 
 type Gateway struct {
-	Port                string
-	JWKSURL             string
-	WalletServiceAddr   string
-	AdminUserIDs        string
-	CORSAllowedOrigins  string
-	SupportedCurrencies string
-	SupportedChains     string
-	SupportedPairs      string
-	RateLimitRPS        int
-	RateLimitBurst      int
-	RateLimitBackend    string
-	RedisAddr           string
-	MinDeposit          string
-	MaxDeposit          string
-	DailyDeposit        string
-	MinWithdrawal       string
-	MaxWithdrawal       string
-	DailyWithdrawal     string
+	Port                 string
+	JWKSURL              string
+	WalletServiceAddr    string
+	OddsFeedServiceAddr  string
+	AdminUserIDs         string
+	CORSAllowedOrigins   string
+	SupportedCurrencies  string
+	SupportedChains      string
+	SupportedPairs       string
+	RateLimitRPS         int
+	RateLimitBurst       int
+	RateLimitBackend     string
+	RedisAddr            string
+	MinDeposit           string
+	MaxDeposit           string
+	DailyDeposit         string
+	MinWithdrawal        string
+	MaxWithdrawal        string
+	DailyWithdrawal      string
 }
 
 func LoadGateway() Gateway {
@@ -31,6 +32,7 @@ func LoadGateway() Gateway {
 		Port:                getEnv("PORT", "8080"),
 		JWKSURL:             getEnv("JWKS_URL", "http://localhost:3000/api/auth/jwks"),
 		WalletServiceAddr:   getEnv("WALLET_SERVICE_ADDR", "localhost:50051"),
+		OddsFeedServiceAddr: getEnv("ODDSFEED_SERVICE_ADDR", "localhost:50052"),
 		AdminUserIDs:        getEnv("ADMIN_USER_IDS", ""),
 		CORSAllowedOrigins:  getEnv("CORS_ALLOWED_ORIGINS", ""),
 		SupportedCurrencies: getEnv("SUPPORTED_CURRENCIES", ""),
