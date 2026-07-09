@@ -14,6 +14,16 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJE
 
 - No dependencies for the current plan.
 
+## Reconciliation
+
+- **2026-07-10**: Plan 001 verified at `HEAD` (`ea050d1`). All done criteria still hold:
+  - `go test -race ./internal/gateway/...` ✅
+  - `go test -race ./internal/oddsfeed/...` ✅
+  - `go test -race ./...` ✅
+  - `go build -o bin/gateway ./cmd/gateway` ✅
+  - `go build -o bin/oddsfeed ./cmd/oddsfeed` ✅
+  - `gofmt -d internal/gateway/server_test.go internal/oddsfeed/server.go` clean ✅
+
 ## Findings considered and rejected
 
 - None.
