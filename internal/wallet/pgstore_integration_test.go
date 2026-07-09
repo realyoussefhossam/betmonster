@@ -81,7 +81,15 @@ func assertDecimalEqual(t *testing.T, expected, actual string, msgAndArgs ...int
 	require.NoError(t, err, "invalid expected decimal %q", expected)
 	act, err := decimal.NewFromString(actual)
 	require.NoError(t, err, "invalid actual decimal %q", actual)
-	assert.True(t, exp.Equal(act), append([]interface{}{"expected %s, got %s", expected, actual}, msgAndArgs...)...)
+
+	if len(msgAndArgs) > 0 {
+		if format, ok := msgAndArgs[0].(string); ok {
+			msg := fmt.Sprintf(format, msgAndArgs[1:]...)
+			assert.True(t, exp.Equal(act), "%s: expected %s, got %s", msg, expected, actual)
+			return
+		}
+	}
+	assert.True(t, exp.Equal(act), "expected %s, got %s", expected, actual)
 }
 
 func findRepoRoot() (string, error) {
