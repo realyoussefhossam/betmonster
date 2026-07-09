@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -26,11 +28,12 @@ func TestClientGetDepositAddress(t *testing.T) {
 
 func TestWebhookValidator(t *testing.T) {
 	body := `{"type":"deposit","data":{"sys_no":"DXC1","uid":"u1","amount":"10","crypto":"USDT","chain":"base","confirmed":true,"hash":"0xabc","block":1,"risk_level":null,"risk_score":null}}`
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	validator := NewWebhookValidator("key")
 	headers := map[string]string{
 		"XC-Nonce":     "n1",
-		"XC-Timestamp": "1234567890",
-		"XC-Signature": Sign("n1"+"1234567890"+body, "key"),
+		"XC-Timestamp": timestamp,
+		"XC-Signature": Sign("n1"+timestamp+body, "key"),
 	}
 	webhook, err := validator.Validate([]byte(body), headers)
 	assert.NoError(t, err)
@@ -41,10 +44,11 @@ func TestWebhookValidator(t *testing.T) {
 
 func TestWebhookValidatorInvalidSignature(t *testing.T) {
 	body := `{"type":"deposit"}`
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	validator := NewWebhookValidator("key")
 	headers := map[string]string{
 		"XC-Nonce":     "n1",
-		"XC-Timestamp": "1234567890",
+		"XC-Timestamp": timestamp,
 		"XC-Signature": "bad-signature",
 	}
 	_, err := validator.Validate([]byte(body), headers)
