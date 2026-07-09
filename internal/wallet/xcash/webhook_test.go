@@ -1,6 +1,7 @@
 package xcash
 
 import (
+	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ func TestWebhookValid(t *testing.T) {
 	rdb := newRedis(t)
 	validator := NewWebhookValidator("key").WithRedis(rdb)
 
-	webhook, err := validator.Validate([]byte(body), headers)
+	webhook, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.NoError(t, err)
 	assert.Equal(t, "DXC1", webhook.Data.SysNo)
 	assert.Equal(t, "10", webhook.Data.Amount)
@@ -48,10 +49,10 @@ func TestWebhookReplayNonce(t *testing.T) {
 	rdb := newRedis(t)
 	validator := NewWebhookValidator("key").WithRedis(rdb)
 
-	_, err := validator.Validate([]byte(body), headers)
+	_, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.NoError(t, err)
 
-	_, err = validator.Validate([]byte(body), headers)
+	_, err = validator.Validate(context.Background(), []byte(body), headers)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "nonce already used")
 }
@@ -64,7 +65,7 @@ func TestWebhookOldTimestamp(t *testing.T) {
 	rdb := newRedis(t)
 	validator := NewWebhookValidator("key").WithRedis(rdb)
 
-	_, err := validator.Validate([]byte(body), headers)
+	_, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "timestamp")
 }
@@ -77,7 +78,7 @@ func TestWebhookFutureTimestamp(t *testing.T) {
 	rdb := newRedis(t)
 	validator := NewWebhookValidator("key").WithRedis(rdb)
 
-	_, err := validator.Validate([]byte(body), headers)
+	_, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "timestamp")
 }
@@ -89,12 +90,12 @@ func TestWebhookWithoutRedis(t *testing.T) {
 
 	validator := NewWebhookValidator("key")
 
-	webhook, err := validator.Validate([]byte(body), headers)
+	webhook, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.NoError(t, err)
 	assert.Equal(t, "DXC1", webhook.Data.SysNo)
 
 	// Without Redis, the same nonce is accepted again (test-only behaviour for backward compatibility).
-	_, err = validator.Validate([]byte(body), headers)
+	_, err = validator.Validate(context.Background(), []byte(body), headers)
 	assert.NoError(t, err)
 }
 
@@ -106,7 +107,7 @@ func TestWebhookInvalidSignature(t *testing.T) {
 		"XC-Timestamp": strconv.FormatInt(time.Now().Unix(), 10),
 		"XC-Signature": "bad-signature",
 	}
-	_, err := validator.Validate([]byte(body), headers)
+	_, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "signature")
 }

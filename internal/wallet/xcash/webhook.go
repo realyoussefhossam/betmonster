@@ -35,7 +35,7 @@ func (v *WebhookValidator) WithRedis(r redis.Cmdable) *WebhookValidator {
 	return v
 }
 
-func (v *WebhookValidator) Validate(body []byte, headers map[string]string) (*DepositWebhook, error) {
+func (v *WebhookValidator) Validate(ctx context.Context, body []byte, headers map[string]string) (*DepositWebhook, error) {
 	nonce := headers["XC-Nonce"]
 	timestamp := headers["XC-Timestamp"]
 	signature := headers["XC-Signature"]
@@ -50,7 +50,7 @@ func (v *WebhookValidator) Validate(body []byte, headers map[string]string) (*De
 	}
 
 	if v.redis != nil {
-		if err := v.checkNonce(context.Background(), nonce, timestamp); err != nil {
+		if err := v.checkNonce(ctx, nonce, timestamp); err != nil {
 			return nil, err
 		}
 	}

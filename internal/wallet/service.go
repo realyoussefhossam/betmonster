@@ -127,7 +127,7 @@ func (s *Service) GetDepositAddress(ctx context.Context, userID, currency, chain
 }
 
 func (s *Service) ProcessDepositWebhook(ctx context.Context, body []byte, headers map[string]string) (string, error) {
-	webhook, err := s.xcashValidator.Validate(body, headers)
+	webhook, err := s.xcashValidator.Validate(ctx, body, headers)
 	if err != nil {
 		return "", err
 	}

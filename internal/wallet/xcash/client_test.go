@@ -35,7 +35,7 @@ func TestWebhookValidator(t *testing.T) {
 		"XC-Timestamp": timestamp,
 		"XC-Signature": Sign("n1"+timestamp+body, "key"),
 	}
-	webhook, err := validator.Validate([]byte(body), headers)
+	webhook, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.NoError(t, err)
 	assert.Equal(t, "DXC1", webhook.Data.SysNo)
 	assert.Equal(t, "10", webhook.Data.Amount)
@@ -51,6 +51,6 @@ func TestWebhookValidatorInvalidSignature(t *testing.T) {
 		"XC-Timestamp": timestamp,
 		"XC-Signature": "bad-signature",
 	}
-	_, err := validator.Validate([]byte(body), headers)
+	_, err := validator.Validate(context.Background(), []byte(body), headers)
 	assert.Error(t, err)
 }
