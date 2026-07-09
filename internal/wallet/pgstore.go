@@ -97,7 +97,10 @@ func (s *PGStore) CreditWallet(ctx context.Context, userID, currency, amount, re
 		return nil, fmt.Errorf("get wallet: %w", err)
 	}
 
-	newBalance := addDecimal(w.Balance, amount)
+	newBalance, err := addDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("credit wallet: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		newBalance, w.ID, w.Version,
@@ -176,7 +179,10 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 		return nil, ErrInsufficientBalance
 	}
 
-	newBalance := subDecimal(w.Balance, amount)
+	newBalance, err := subDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("debit wallet: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		newBalance, w.ID, w.Version,
@@ -317,7 +323,10 @@ func (s *PGStore) RequestWithdrawal(ctx context.Context, userID, currency, amoun
 		return nil, ErrInsufficientBalance
 	}
 
-	newBalance := subDecimal(w.Balance, amount)
+	newBalance, err := subDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("debit wallet for withdrawal: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		newBalance, w.ID, w.Version,
@@ -450,7 +459,10 @@ func (s *PGStore) RejectWithdrawal(ctx context.Context, id, reviewedBy string) (
 		return nil, fmt.Errorf("get wallet: %w", err)
 	}
 
-	reversedBalance := addDecimal(w.Balance, req.Amount)
+	reversedBalance, err := addDecimal(w.Balance, req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("reverse withdrawal debit: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		reversedBalance, w.ID, w.Version,
