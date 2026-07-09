@@ -80,7 +80,7 @@ func (s *GRPCServer) GetEvent(ctx context.Context, req *pb.GetEventRequest) (*pb
 		return nil, fmt.Errorf("get event: %w", err)
 	}
 	if it == nil {
-		return nil, fmt.Errorf("event not found")
+		return &pb.GetEventResponse{}, nil
 	}
 	return &pb.GetEventResponse{Event: toProtoEvent(*it)}, nil
 }
