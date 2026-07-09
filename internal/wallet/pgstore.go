@@ -129,6 +129,23 @@ func (s *PGStore) CreditWallet(ctx context.Context, userID, currency, amount, re
 	`
 	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID, metadata).Scan(&txn.ID, &txn.CreatedAt)
 	if err != nil {
+		if referenceID != "" {
+			var existingID string
+			err := tx.QueryRowContext(ctx, "SELECT id FROM transactions WHERE reference_id = $1", referenceID).Scan(&existingID)
+			if err == nil {
+				txn, err := s.getTransactionByID(ctx, tx, existingID)
+				if err != nil {
+					return nil, fmt.Errorf("get existing transaction: %w", err)
+				}
+				if err := tx.Commit(); err != nil {
+					return nil, fmt.Errorf("commit: %w", err)
+				}
+				return txn, nil
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("check reference id after insert failure: %w", err)
+			}
+		}
 		return nil, fmt.Errorf("insert transaction: %w", err)
 	}
 
@@ -229,6 +246,23 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 	`
 	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID).Scan(&txn.ID, &txn.CreatedAt)
 	if err != nil {
+		if referenceID != "" {
+			var existingID string
+			err := tx.QueryRowContext(ctx, "SELECT id FROM transactions WHERE reference_id = $1", referenceID).Scan(&existingID)
+			if err == nil {
+				txn, err := s.getTransactionByID(ctx, tx, existingID)
+				if err != nil {
+					return nil, fmt.Errorf("get existing transaction: %w", err)
+				}
+				if err := tx.Commit(); err != nil {
+					return nil, fmt.Errorf("commit: %w", err)
+				}
+				return txn, nil
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("check reference id after insert failure: %w", err)
+			}
+		}
 		return nil, fmt.Errorf("insert transaction: %w", err)
 	}
 
