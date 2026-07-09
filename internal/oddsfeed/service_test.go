@@ -14,6 +14,20 @@ type localMockProvider struct{}
 func (p *localMockProvider) Name() string { return "mock" }
 
 func (p *localMockProvider) FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*Snapshot, error) {
+	hier, err := p.FetchHierarchy(ctx, sport, params)
+	if err != nil {
+		return nil, err
+	}
+	conds, err := p.FetchConditions(ctx, []string{"mock-ev-1"})
+	if err != nil {
+		return nil, err
+	}
+	hier.Markets = conds.Markets
+	hier.Outcomes = conds.Outcomes
+	return hier, nil
+}
+
+func (p *localMockProvider) FetchHierarchy(ctx context.Context, sport string, params map[string]string) (*Snapshot, error) {
 	now := time.Now()
 	return &Snapshot{
 		Provider: "mock",
@@ -23,6 +37,15 @@ func (p *localMockProvider) FetchSnapshot(ctx context.Context, sport string, par
 			ProviderID: "mock-ev-1", LeagueID: "mock-lg-1", SportID: "mock-sp-1",
 			HomeParticipant: "Mock FC", AwayParticipant: "Test United",
 			StartsAt: now.Add(2 * time.Hour).Format(time.RFC3339), Status: "upcoming",
+		}},
+	}, nil
+}
+
+func (p *localMockProvider) FetchConditions(ctx context.Context, gameIDs []string) (*Snapshot, error) {
+	return &Snapshot{
+		Provider: "mock",
+		Events: []EventSnapshot{{
+			ProviderID: "mock-ev-1", SportID: "mock-sp-1", LeagueID: "mock-lg-1", Status: "upcoming",
 		}},
 		Markets: []MarketSnapshot{{
 			ProviderID: "mock-mk-1", EventID: "mock-ev-1", Type: "1x2", Name: "Match Result", Status: "active",

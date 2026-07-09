@@ -135,6 +135,29 @@ type outcome struct {
 }
 
 func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*oddsfeed.Snapshot, error) {
+	hier, err := p.FetchHierarchy(ctx, sport, params)
+	if err != nil {
+		return nil, err
+	}
+
+	gameIDs := make([]string, 0, len(hier.Events))
+	for _, e := range hier.Events {
+		gameIDs = append(gameIDs, e.ProviderID)
+	}
+
+	if len(gameIDs) > 0 {
+		conds, err := p.FetchConditions(ctx, gameIDs)
+		if err != nil {
+			return nil, err
+		}
+		hier.Markets = conds.Markets
+		hier.Outcomes = conds.Outcomes
+	}
+
+	return hier, nil
+}
+
+func (p *Provider) FetchHierarchy(ctx context.Context, sport string, params map[string]string) (*oddsfeed.Snapshot, error) {
 	if p.baseURL == "" {
 		return nil, fmt.Errorf("azuro base URL not configured")
 	}
@@ -153,27 +176,22 @@ func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[s
 	if err != nil {
 		return nil, err
 	}
+	return p.buildSnapshot(&sportsResp, &conditionsResponse{}), nil
+}
 
-	gameIDs := make([]string, 0, 128)
-	for _, sp := range sportsResp.Sports {
-		for _, c := range sp.Countries {
-			for _, l := range c.Leagues {
-				for _, g := range l.Games {
-					gameIDs = append(gameIDs, g.GameID)
-				}
-			}
-		}
+func (p *Provider) FetchConditions(ctx context.Context, gameIDs []string) (*oddsfeed.Snapshot, error) {
+	if p.baseURL == "" {
+		return nil, fmt.Errorf("azuro base URL not configured")
+	}
+	if len(gameIDs) == 0 {
+		return &oddsfeed.Snapshot{Provider: ProviderName}, nil
 	}
 
-	var condResp conditionsResponse
-	if len(gameIDs) > 0 {
-		condResp, err = p.fetchConditions(ctx, gameIDs)
-		if err != nil {
-			return nil, err
-		}
+	condResp, err := p.fetchConditions(ctx, gameIDs)
+	if err != nil {
+		return nil, err
 	}
-
-	return p.buildSnapshot(&sportsResp, &condResp), nil
+	return p.buildSnapshot(&sportsResponse{}, &condResp), nil
 }
 
 func (p *Provider) SubscribeLive(ctx context.Context, sport string, updates chan<- oddsfeed.Update) error {
@@ -338,14 +356,6 @@ func (p *Provider) fetchLiveConditionIDs(ctx context.Context) ([]string, error) 
 // buildSnapshot converts Azuro responses into the internal oddsfeed.Snapshot format.
 func (p *Provider) buildSnapshot(sportsResp *sportsResponse, condResp *conditionsResponse) *oddsfeed.Snapshot {
 	snap := &oddsfeed.Snapshot{Provider: ProviderName}
-	conditionByID := make(map[string]condition, len(condResp.Conditions))
-	for _, cond := range condResp.Conditions {
-		id := cond.ConditionID
-		if id == "" {
-			id = cond.ID
-		}
-		conditionByID[id] = cond
-	}
 
 	for _, sp := range sportsResp.Sports {
 		sportID := providerSportID(sp)
@@ -385,6 +395,24 @@ func (p *Provider) buildSnapshot(sportsResp *sportsResponse, condResp *condition
 		}
 	}
 
+	// When building from conditions alone, include minimal event stubs so the
+	// normalizer can resolve market/outcome parent references deterministically.
+	conditionGames := make(map[string]gameRef, len(condResp.Conditions))
+	for _, cond := range condResp.Conditions {
+		conditionGames[cond.Game.GameID] = cond.Game
+	}
+	for gameID, g := range conditionGames {
+		sportID := g.Sport.SportID
+		if sportID == "" {
+			sportID = "0"
+		}
+		snap.Events = append(snap.Events, oddsfeed.EventSnapshot{
+			ProviderID: gameID,
+			SportID:    sportID,
+			Status:     "upcoming",
+		})
+	}
+
 	for _, cond := range condResp.Conditions {
 		marketID := cond.ConditionID
 		if marketID == "" {
@@ -416,65 +444,53 @@ func (p *Provider) buildSnapshot(sportsResp *sportsResponse, condResp *condition
 		}
 	}
 
-	_ = conditionByID // reserved for future cross-referencing
 	return snap
 }
 
 // wsMessage mirrors the payload sent by Azuro's live WebSocket.
+// message.data is an array of condition updates.
 type wsMessage struct {
-	Data wsCondition `json:"data"`
+	Data []wsCondition `json:"data"`
 }
 
 type wsCondition struct {
-	ConditionID string       `json:"conditionId"`
-	State       string       `json:"state"`
-	Outcomes    []wsOutcome  `json:"outcomes"`
+	ID       string      `json:"id"`
+	State    string      `json:"state"`
+	Outcomes []wsOutcome `json:"outcomes"`
 }
 
 type wsOutcome struct {
-	OutcomeID string `json:"outcomeId"`
-	Odds      string `json:"odds"`
-	State     string `json:"state"`
+	ID   int     `json:"id"`
+	Odds float64 `json:"odds"`
 }
 
 // updatesFromMessage converts an Azuro WebSocket payload into internal Update messages.
 func (p *Provider) updatesFromMessage(msg *wsMessage) []oddsfeed.Update {
 	var updates []oddsfeed.Update
-	cond := msg.Data
-	if cond.ConditionID == "" {
-		return updates
-	}
+	for _, cond := range msg.Data {
+		if cond.ID == "" {
+			continue
+		}
 
-	if cond.State != "" {
-		updates = append(updates, oddsfeed.Update{
-			Provider: ProviderName,
-			Type:     "status",
-			EntityID: cond.ConditionID,
-			Payload: map[string]string{
-				"status": normalizeConditionState(cond.State),
-			},
-		})
-	}
+		if cond.State != "" {
+			updates = append(updates, oddsfeed.Update{
+				Provider: ProviderName,
+				Type:     "status",
+				EntityID: cond.ID,
+				Payload: map[string]string{
+					"status": normalizeConditionState(cond.State),
+				},
+			})
+		}
 
-	for _, out := range cond.Outcomes {
-		outcomeID := fmt.Sprintf("%s:%s", cond.ConditionID, out.OutcomeID)
-		if out.Odds != "" {
+		for _, out := range cond.Outcomes {
+			outcomeID := fmt.Sprintf("%s:%d", cond.ID, out.ID)
 			updates = append(updates, oddsfeed.Update{
 				Provider: ProviderName,
 				Type:     "odds",
 				EntityID: outcomeID,
 				Payload: map[string]string{
-					"odds": out.Odds,
-				},
-			})
-		}
-		if out.State != "" {
-			updates = append(updates, oddsfeed.Update{
-				Provider: ProviderName,
-				Type:     "status",
-				EntityID: outcomeID,
-				Payload: map[string]string{
-					"status": normalizeOutcomeState(out.State),
+					"odds": fmt.Sprintf("%.4f", out.Odds),
 				},
 			})
 		}

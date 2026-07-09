@@ -38,25 +38,24 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 	for _, e := range snap.Events {
 		id := deterministicID(snap.Provider, "event:"+e.ProviderID)
 		eventIDs[e.ProviderID] = id
-		startsAt, err := time.Parse(time.RFC3339, e.StartsAt)
-		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("parse event starts_at: %w", err)
+		var startsAt time.Time
+		if e.StartsAt != "" {
+			var err error
+			startsAt, err = time.Parse(time.RFC3339, e.StartsAt)
+			if err != nil {
+				return nil, nil, nil, nil, nil, fmt.Errorf("parse event starts_at: %w", err)
+			}
 		}
 		var scoreUpdatedAt time.Time
 		if e.ScoreUpdatedAt != "" {
+			var err error
 			scoreUpdatedAt, err = time.Parse(time.RFC3339, e.ScoreUpdatedAt)
 			if err != nil {
 				return nil, nil, nil, nil, nil, fmt.Errorf("parse event score_updated_at: %w", err)
 			}
 		}
-		leagueID, ok := leagueIDs[e.LeagueID]
-		if !ok {
-			return nil, nil, nil, nil, nil, fmt.Errorf("event %s references unknown league %s", e.ProviderID, e.LeagueID)
-		}
-		sportID, ok := sportIDs[e.SportID]
-		if !ok {
-			return nil, nil, nil, nil, nil, fmt.Errorf("event %s references unknown sport %s", e.ProviderID, e.SportID)
-		}
+		leagueID := leagueIDs[e.LeagueID]
+		sportID := sportIDs[e.SportID]
 		events = append(events, Event{
 			ID: id, Provider: snap.Provider, ProviderEventID: e.ProviderID,
 			LeagueID: leagueID, SportID: sportID,

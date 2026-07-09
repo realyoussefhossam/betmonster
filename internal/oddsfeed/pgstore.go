@@ -238,6 +238,27 @@ func (s *PGStore) UpdateOutcomeStatus(ctx context.Context, provider, providerOut
 	return marketID, outcomeID, nil
 }
 
+func (s *PGStore) GetEventStatusesByProvider(ctx context.Context, provider string) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT provider_event_id, status FROM events WHERE provider = $1`, provider)
+	if err != nil {
+		return nil, fmt.Errorf("get event statuses: %w", err)
+	}
+	defer rows.Close()
+
+	statuses := make(map[string]string)
+	for rows.Next() {
+		var providerEventID, status string
+		if err := rows.Scan(&providerEventID, &status); err != nil {
+			return nil, fmt.Errorf("get event statuses: scan: %w", err)
+		}
+		statuses[providerEventID] = status
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get event statuses: rows: %w", err)
+	}
+	return statuses, nil
+}
+
 func (s *PGStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) {
 	if page <= 0 {
 		page = 1

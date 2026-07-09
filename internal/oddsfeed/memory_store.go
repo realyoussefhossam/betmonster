@@ -201,6 +201,18 @@ func (s *memoryStore) UpdateOutcomeStatus(ctx context.Context, provider, provide
 	return o.MarketID, o.ID, nil
 }
 
+func (s *memoryStore) GetEventStatusesByProvider(ctx context.Context, provider string) (map[string]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	statuses := make(map[string]string)
+	for _, e := range s.events {
+		if e.Provider == provider {
+			statuses[e.ProviderEventID] = e.Status
+		}
+	}
+	return statuses, nil
+}
+
 func (s *memoryStore) ListSports(ctx context.Context, page, pageSize int) ([]Sport, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

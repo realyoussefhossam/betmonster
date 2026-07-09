@@ -19,6 +19,19 @@ type grpcLocalMockProvider struct{}
 
 func (p *grpcLocalMockProvider) Name() string { return "mock" }
 func (p *grpcLocalMockProvider) FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*oddsfeed.Snapshot, error) {
+	hier, err := p.FetchHierarchy(ctx, sport, params)
+	if err != nil {
+		return nil, err
+	}
+	conds, err := p.FetchConditions(ctx, []string{"ev-1"})
+	if err != nil {
+		return nil, err
+	}
+	hier.Markets = conds.Markets
+	hier.Outcomes = conds.Outcomes
+	return hier, nil
+}
+func (p *grpcLocalMockProvider) FetchHierarchy(ctx context.Context, sport string, params map[string]string) (*oddsfeed.Snapshot, error) {
 	now := time.Now()
 	return &oddsfeed.Snapshot{
 		Provider: "mock",
@@ -28,6 +41,14 @@ func (p *grpcLocalMockProvider) FetchSnapshot(ctx context.Context, sport string,
 			ProviderID: "ev-1", LeagueID: "lg-1", SportID: "sp-1",
 			HomeParticipant: "Mock FC", AwayParticipant: "Test United",
 			StartsAt: now.Add(2 * time.Hour).Format(time.RFC3339), Status: "upcoming",
+		}},
+	}, nil
+}
+func (p *grpcLocalMockProvider) FetchConditions(ctx context.Context, gameIDs []string) (*oddsfeed.Snapshot, error) {
+	return &oddsfeed.Snapshot{
+		Provider: "mock",
+		Events: []oddsfeed.EventSnapshot{{
+			ProviderID: "ev-1", SportID: "sp-1", LeagueID: "lg-1", Status: "upcoming",
 		}},
 		Markets: []oddsfeed.MarketSnapshot{{
 			ProviderID: "mk-1", EventID: "ev-1", Type: "1x2", Name: "Match Result", Status: "active",

@@ -35,11 +35,53 @@ func (s *Service) SyncProvider(ctx context.Context, providerName string) error {
 	if !ok {
 		return fmt.Errorf("unknown provider: %s", providerName)
 	}
-	snap, err := p.FetchSnapshot(ctx, "", nil)
+
+	hier, err := p.FetchHierarchy(ctx, "", nil)
 	if err != nil {
-		return fmt.Errorf("fetch snapshot: %w", err)
+		return fmt.Errorf("fetch hierarchy: %w", err)
 	}
-	return s.applySnapshot(ctx, snap)
+
+	sports, leagues, events, _, _, err := NormalizeSnapshot(hier)
+	if err != nil {
+		return fmt.Errorf("normalize hierarchy: %w", err)
+	}
+
+	existingStatuses, err := s.store.GetEventStatusesByProvider(ctx, providerName)
+	if err != nil {
+		return fmt.Errorf("get existing event statuses: %w", err)
+	}
+
+	if err := s.applyHierarchy(ctx, sports, leagues, events); err != nil {
+		return err
+	}
+
+	changedIDs := changedEventIDs(events, existingStatuses)
+	if len(changedIDs) == 0 {
+		return nil
+	}
+
+	conds, err := p.FetchConditions(ctx, changedIDs)
+	if err != nil {
+		return fmt.Errorf("fetch conditions: %w", err)
+	}
+	_, _, _, markets, outcomes, err := NormalizeSnapshot(conds)
+	if err != nil {
+		return fmt.Errorf("normalize conditions: %w", err)
+	}
+	return s.applyMarkets(ctx, markets, outcomes)
+}
+
+// changedEventIDs returns the provider event IDs that need fresh conditions.
+// We refetch conditions for new events, live events, and events whose status changed.
+func changedEventIDs(events []Event, existing map[string]string) []string {
+	ids := make([]string, 0, len(events))
+	for _, e := range events {
+		prev, ok := existing[e.ProviderEventID]
+		if !ok || prev != e.Status || e.Status == "live" {
+			ids = append(ids, e.ProviderEventID)
+		}
+	}
+	return ids
 }
 
 // ApplyUpdate applies a single incremental update from a provider (e.g. live odds change).
@@ -78,6 +120,13 @@ func (s *Service) applySnapshot(ctx context.Context, snap *Snapshot) error {
 	if err != nil {
 		return fmt.Errorf("normalize snapshot: %w", err)
 	}
+	if err := s.applyHierarchy(ctx, sports, leagues, events); err != nil {
+		return err
+	}
+	return s.applyMarkets(ctx, markets, outcomes)
+}
+
+func (s *Service) applyHierarchy(ctx context.Context, sports []Sport, leagues []League, events []Event) error {
 	for _, sp := range sports {
 		id, err := s.store.UpsertSport(ctx, sp)
 		if err != nil {
@@ -110,6 +159,10 @@ func (s *Service) applySnapshot(ctx context.Context, snap *Snapshot) error {
 			}
 		}
 	}
+	return nil
+}
+
+func (s *Service) applyMarkets(ctx context.Context, markets []Market, outcomes []Outcome) error {
 	for _, m := range markets {
 		id, err := s.store.UpsertMarket(ctx, m)
 		if err != nil {

@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/grpc"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"google.golang.org/grpc"
 
-	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 	"github.com/realyoussefhossam/betmonster/internal/oddsfeed"
 	"github.com/realyoussefhossam/betmonster/internal/oddsfeed/providers/azuro"
 	"github.com/realyoussefhossam/betmonster/internal/oddsfeed/providers/mock"
+	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 	"github.com/realyoussefhossam/betmonster/internal/shared/config"
 	"github.com/realyoussefhossam/betmonster/internal/shared/logging"
 )
@@ -73,7 +73,7 @@ func main() {
 	scheduler := oddsfeed.NewScheduler(svc, providerNames, time.Duration(cfg.SyncIntervalSeconds)*time.Second, logger)
 	go scheduler.Start(context.Background())
 
-	ws := oddsfeed.NewWebSocketWorker(svc, providers, logger)
+	ws := oddsfeed.NewWebSocketWorker(svc, providers, logger, time.Duration(cfg.WSReconnectMaxSeconds)*time.Second)
 	go ws.Start(context.Background())
 
 	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)

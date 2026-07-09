@@ -11,6 +11,7 @@ type Store interface {
 	UpdateOutcomeOdds(ctx context.Context, provider, providerOutcomeID, odds string) (marketID, outcomeID string, err error)
 	UpdateMarketStatus(ctx context.Context, provider, providerMarketID, status string) (marketID string, err error)
 	UpdateOutcomeStatus(ctx context.Context, provider, providerOutcomeID, status string) (marketID, outcomeID string, err error)
+	GetEventStatusesByProvider(ctx context.Context, provider string) (map[string]string, error)
 	ListSports(ctx context.Context, page, pageSize int) ([]Sport, error)
 	ListLeagues(ctx context.Context, sportID string, page, pageSize int) ([]League, error)
 	ListEvents(ctx context.Context, sportID, leagueID, status string, page, pageSize int) ([]Event, error)

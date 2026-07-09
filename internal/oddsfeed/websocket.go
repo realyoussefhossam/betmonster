@@ -7,17 +7,21 @@ import (
 )
 
 type WebSocketWorker struct {
-	service   *Service
-	providers map[string]FeedProvider
-	logger    *slog.Logger
+	service           *Service
+	providers         map[string]FeedProvider
+	logger            *slog.Logger
+	maxReconnect      time.Duration
 }
 
-func NewWebSocketWorker(service *Service, providers []FeedProvider, logger *slog.Logger) *WebSocketWorker {
+func NewWebSocketWorker(service *Service, providers []FeedProvider, logger *slog.Logger, maxReconnect time.Duration) *WebSocketWorker {
 	pm := make(map[string]FeedProvider, len(providers))
 	for _, p := range providers {
 		pm[p.Name()] = p
 	}
-	return &WebSocketWorker{service: service, providers: pm, logger: logger}
+	if maxReconnect <= 0 {
+		maxReconnect = 5 * time.Second
+	}
+	return &WebSocketWorker{service: service, providers: pm, logger: logger, maxReconnect: maxReconnect}
 }
 
 func (w *WebSocketWorker) Start(ctx context.Context) {
@@ -27,6 +31,7 @@ func (w *WebSocketWorker) Start(ctx context.Context) {
 }
 
 func (w *WebSocketWorker) runProvider(ctx context.Context, name string, p FeedProvider) {
+	backoff := time.Second
 	for {
 		w.logger.Info("websocket subscribing", slog.String("provider", name))
 		updates := make(chan Update, 100)
@@ -55,7 +60,11 @@ func (w *WebSocketWorker) runProvider(ctx context.Context, name string, p FeedPr
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(5 * time.Second):
+		case <-time.After(backoff):
+		}
+		backoff *= 2
+		if backoff > w.maxReconnect {
+			backoff = w.maxReconnect
 		}
 	}
 }

@@ -76,6 +76,11 @@ type Update struct {
 type FeedProvider interface {
 	// FetchSnapshot returns a full normalized snapshot for the given sport.
 	FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*Snapshot, error)
+	// FetchHierarchy returns sports, leagues, and events without markets/outcomes.
+	// Used for incremental syncs where only changed events need fresh conditions.
+	FetchHierarchy(ctx context.Context, sport string, params map[string]string) (*Snapshot, error)
+	// FetchConditions returns markets and outcomes for the given game IDs.
+	FetchConditions(ctx context.Context, gameIDs []string) (*Snapshot, error)
 	// SubscribeLive streams real-time updates for the given sport. The caller must provide a buffered channel.
 	SubscribeLive(ctx context.Context, sport string, updates chan<- Update) error
 	// ValidateConfig checks whether the provider-specific configuration is valid.

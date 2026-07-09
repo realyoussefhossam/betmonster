@@ -16,6 +16,20 @@ func New() *Provider { return &Provider{} }
 func (p *Provider) Name() string { return ProviderName }
 
 func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*oddsfeed.Snapshot, error) {
+	hier, err := p.FetchHierarchy(ctx, sport, params)
+	if err != nil {
+		return nil, err
+	}
+	conds, err := p.FetchConditions(ctx, []string{"mock-ev-1"})
+	if err != nil {
+		return nil, err
+	}
+	hier.Markets = conds.Markets
+	hier.Outcomes = conds.Outcomes
+	return hier, nil
+}
+
+func (p *Provider) FetchHierarchy(ctx context.Context, sport string, params map[string]string) (*oddsfeed.Snapshot, error) {
 	now := time.Now()
 	return &oddsfeed.Snapshot{
 		Provider: ProviderName,
@@ -25,6 +39,15 @@ func (p *Provider) FetchSnapshot(ctx context.Context, sport string, params map[s
 			ProviderID: "mock-ev-1", LeagueID: "mock-lg-1", SportID: "mock-sp-1",
 			HomeParticipant: "Mock FC", AwayParticipant: "Test United",
 			StartsAt: now.Add(2 * time.Hour).Format(time.RFC3339), Status: "upcoming",
+		}},
+	}, nil
+}
+
+func (p *Provider) FetchConditions(ctx context.Context, gameIDs []string) (*oddsfeed.Snapshot, error) {
+	return &oddsfeed.Snapshot{
+		Provider: ProviderName,
+		Events: []oddsfeed.EventSnapshot{{
+			ProviderID: "mock-ev-1", SportID: "mock-sp-1", LeagueID: "mock-lg-1", Status: "upcoming",
 		}},
 		Markets: []oddsfeed.MarketSnapshot{{
 			ProviderID: "mock-mk-1", EventID: "mock-ev-1", Type: "1x2", Name: "Match Result", Status: "active",
