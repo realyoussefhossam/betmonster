@@ -48,9 +48,29 @@ func TestDebitWallet(t *testing.T) {
 	assert.Equal(t, "withdrawal", tx.Type)
 	assert.Equal(t, "60", tx.BalanceAfter)
 
+	// idempotent
+	tx2, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	assert.NoError(t, err)
+	assert.Equal(t, tx.ID, tx2.ID)
+
 	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
 	require.NoError(t, err)
 	assert.Equal(t, "60", wallet.Balance)
+}
+
+func TestDebitWalletInsufficientBalance(t *testing.T) {
+	store := NewInMemoryStore()
+	ctx := context.Background()
+
+	_, err := store.CreditWallet(ctx, "user-1", "USDT", "50.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	_, err = store.DebitWallet(ctx, "user-1", "USDT", "100.00", "wd-1")
+	assert.Error(t, err)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
+	assert.Equal(t, "50", wallet.Balance)
 }
 
 func TestCreditWalletInvalidAmount(t *testing.T) {

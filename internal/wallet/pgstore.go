@@ -155,6 +155,24 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 	}
 	defer tx.Rollback()
 
+	if referenceID != "" {
+		var existingID string
+		err := tx.QueryRowContext(ctx, "SELECT id FROM transactions WHERE reference_id = $1", referenceID).Scan(&existingID)
+		if err == nil {
+			txn, err := s.getTransactionByID(ctx, tx, existingID)
+			if err != nil {
+				return nil, fmt.Errorf("get existing transaction: %w", err)
+			}
+			if err := tx.Commit(); err != nil {
+				return nil, fmt.Errorf("commit: %w", err)
+			}
+			return txn, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("check reference id: %w", err)
+		}
+	}
+
 	var w Wallet
 	err = tx.QueryRowContext(ctx,
 		"SELECT id, balance, version FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE",
