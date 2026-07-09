@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -58,7 +59,8 @@ func main() {
 
 	store := wallet.NewPGStore(db)
 	xc := xcash.NewClient(cfg.XCashBaseURL, cfg.XCashAppID, cfg.XCashHMACKey)
-	validator := xcash.NewWebhookValidator(cfg.XCashWebhookSecret)
+	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	validator := xcash.NewWebhookValidator(cfg.XCashWebhookSecret).WithRedis(redisClient)
 	pairs := splitTrim(cfg.SupportedPairs)
 	svc := wallet.NewService(store, xc, validator, pairs)
 
