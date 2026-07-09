@@ -139,7 +139,7 @@ func buildProviders(names []string, cfg config.OddsFeed, logger *slog.Logger) []
 		case "mock":
 			providers = append(providers, mock.New())
 		case "azuro":
-			providers = append(providers, azuro.New(cfg.AzuroGraphURL, cfg.AzuroWSURL))
+			providers = append(providers, azuro.New(cfg.AzuroGraphURL, cfg.AzuroWSURL, cfg.AzuroEnvironment))
 		default:
 			logger.Error("unknown provider, skipping", slog.String("provider", name))
 		}

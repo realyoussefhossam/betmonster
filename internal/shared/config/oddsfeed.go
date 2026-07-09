@@ -9,6 +9,7 @@ type OddsFeed struct {
 	Providers             string
 	AzuroGraphURL         string
 	AzuroWSURL            string
+	AzuroEnvironment      string
 	SyncIntervalSeconds   int
 	WSReconnectMaxSeconds int
 }
@@ -23,6 +24,7 @@ func LoadOddsFeed() OddsFeed {
 		Providers:             getEnv("PROVIDERS", "mock"),
 		AzuroGraphURL:         getEnv("AZURO_GRAPH_URL", ""),
 		AzuroWSURL:            getEnv("AZURO_WS_URL", ""),
+		AzuroEnvironment:      getEnv("AZURO_ENVIRONMENT", "PolygonUSDT"),
 		SyncIntervalSeconds:   getEnvInt("SYNC_INTERVAL_SECONDS", 60),
 		WSReconnectMaxSeconds: getEnvInt("WS_RECONNECT_MAX_SECONDS", 300),
 	}
