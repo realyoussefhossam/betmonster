@@ -71,6 +71,11 @@ type FeedProvider interface {
     Name() string
     // FetchSnapshot returns a full normalized snapshot for a given sport.
     FetchSnapshot(ctx context.Context, sport string, params map[string]string) (*Snapshot, error)
+    // FetchHierarchy returns sports, leagues, and events without markets/outcomes.
+    // Used for incremental syncs where only changed events need fresh conditions.
+    FetchHierarchy(ctx context.Context, sport string, params map[string]string) (*Snapshot, error)
+    // FetchConditions returns markets and outcomes for a specific set of game IDs.
+    FetchConditions(ctx context.Context, gameIDs []string) (*Snapshot, error)
     // SubscribeLive opens a live update channel (websocket, SSE, or long-polling).
     // Returns when the context is cancelled or on fatal error.
     SubscribeLive(ctx context.Context, sport string, updates chan<- Update) error
@@ -90,6 +95,7 @@ Azuro’s Graph API is reserved for **bet history and transaction-related data**
 
 - `GET /market-manager/sports` — sport/country/league/game hierarchy
 - `POST /market-manager/conditions-by-game-ids` — markets and outcomes for a set of game IDs
+- `wss://streams.onchainfeed.org/v1/streams/conditions` — live condition/outcome updates
 
 #### Supported Azuro Environments
 
@@ -207,19 +213,29 @@ odds_snapshots
 ### 7.1 Snapshot Sync (Polling)
 
 1. A scheduler triggers periodic syncs (configurable, default 60 seconds).
-2. For each enabled provider and sport, the adapter calls `FetchSnapshot`.
-3. The normalizer maps provider-specific structures to internal entities.
-4. The store performs idempotent upserts using `provider_*_id`.
-5. The cache writes a live snapshot to Redis.
-6. The event bus emits change events if data differs from the previous state.
+2. The adapter first calls `FetchHierarchy` to get the latest sports, leagues, and events.
+3. The service compares each event's status against the stored status. Conditions are only refetched for:
+   - New events not yet in the database
+   - Events whose status changed (e.g. `upcoming` → `live`, `live` → `finished`)
+   - Events currently marked as `live`
+4. The adapter calls `FetchConditions` only for the changed game IDs.
+5. The normalizer maps provider-specific structures to internal entities.
+6. The store performs idempotent upserts using `provider_*_id`.
+7. The cache writes a live snapshot to Redis.
+8. The event bus emits change events if data differs from the previous state.
+
+This avoids fetching full market data for every stable upcoming event on every tick, which is the main cost of the Azuro REST API.
 
 ### 7.2 Live Updates (WebSocket)
 
 1. A background worker opens a WebSocket connection per enabled provider/sport.
-2. Incremental updates are pushed through `SubscribeLive`.
-3. Each update is normalized and applied through the same store + cache + emit pipeline.
-4. On disconnect, the worker reconnects with exponential backoff up to a max interval.
-5. If the WebSocket is unhealthy for longer than a threshold, the service falls back to polling.
+2. For Azuro, the worker subscribes to all currently live condition IDs on `wss://streams.onchainfeed.org/v1/streams/conditions`.
+3. Incremental updates are pushed through `SubscribeLive`.
+4. Each update is normalized and applied through the same store + cache + emit pipeline.
+5. On disconnect, the worker reconnects with exponential backoff (1s, 2s, 4s, ...) up to `ODDSFEED_WS_RECONNECT_MAX_SECONDS`.
+6. If the WebSocket is unhealthy for longer than a threshold, the service falls back to polling.
+
+> **Operational note:** as of the latest test, the Azuro `streams.onchainfeed.org` endpoint returns HTTP 502 during the WebSocket handshake. The implementation is correct per Azuro's documented URL and message format; the 502 appears to be a provider-side issue. The worker keeps reconnecting with backoff and the incremental snapshot poller continues to refresh live events.
 
 ### 7.3 Change Events
 
@@ -362,7 +378,7 @@ Environment variables (the service reads these without the `ODDSFEED_` prefix in
 |---|---|---|
 | `ODDSFEED_PROVIDERS` | Comma-separated enabled providers | `azuro` |
 | `ODDSFEED_AZURO_GRAPH_URL` | Azuro Backend API base URL | `https://api.onchainfeed.org/api/v1/public` |
-| `ODDSFEED_AZURO_WS_URL` | Azuro WebSocket URL | `wss://streams.onchainfeed.org/v1/streams` |
+| `ODDSFEED_AZURO_WS_URL` | Azuro WebSocket URL | `wss://streams.onchainfeed.org/v1/streams/conditions` |
 | `ODDSFEED_AZURO_ENVIRONMENT` | Azuro environment (see table in §5) | `PolygonUSDT` |
 | `ODDSFEED_SYNC_INTERVAL_SECONDS` | Polling interval | `60` |
 | `ODDSFEED_WS_RECONNECT_MAX_SECONDS` | Max reconnect backoff | `300` |
