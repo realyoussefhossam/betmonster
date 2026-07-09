@@ -376,6 +376,8 @@ func normalizeOutcomeState(state string) string {
 		return "won"
 	case "Lost":
 		return "lost"
+	case "Paused", "Stopped":
+		return "suspended"
 	case "Canceled", "Removed":
 		return "cancelled"
 	default:
