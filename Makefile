@@ -1,4 +1,4 @@
-.PHONY: build test migrate proto dev
+.PHONY: build test migrate proto dev integration-test
 
 build:
 	mkdir -p bin
@@ -10,6 +10,9 @@ test:
 
 migrate:
 	./scripts/migrate.sh up
+
+integration-test:
+	./scripts/test-integration.sh
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative \
