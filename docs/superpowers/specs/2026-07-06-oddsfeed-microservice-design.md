@@ -81,8 +81,33 @@ type FeedProvider interface {
 
 ### v2 Adapters
 
-- **Azuro** (primary): Graph API for snapshots, WebSocket API for live updates, Backend API for feed data if needed.
+- **Azuro** (primary): Azuro public **Backend REST API** for snapshots, WebSocket API for live updates.
 - **Mock** (for local tests): returns deterministic fixtures and odds without external calls.
+
+#### Why not the Graph API for feed data?
+
+Azuro’s Graph API is reserved for **bet history and transaction-related data**. The protocol explicitly moved all feed data (games, conditions, current odds, outcomes) to the Backend REST API. Querying the Graph API for feed data is deprecated and no longer returns current odds/conditions. Odds/Feed therefore uses:
+
+- `GET /market-manager/sports` — sport/country/league/game hierarchy
+- `POST /market-manager/conditions-by-game-ids` — markets and outcomes for a set of game IDs
+
+#### Supported Azuro Environments
+
+The adapter supports every environment exposed by Azuro’s REST API. Set `ODDSFEED_AZURO_ENVIRONMENT` to one of the following values:
+
+| Environment | Network | Notes |
+|---|---|---|
+| `PolygonUSDT` | Polygon mainnet | Default, tested |
+| `PolygonAmoyUSDT` | Polygon Amoy testnet | Dev |
+| `PolygonAmoyAZUSD` | Polygon Amoy testnet | Dev, AZUSD token |
+| `GnosisXDAI` | Gnosis mainnet | Deprecated by Azuro |
+| `GnosisDevXDAI` | Gnosis devnet | Deprecated by Azuro |
+| `BaseWETH` | Base mainnet | |
+| `BaseSepoliaWETH` | Base Sepolia testnet | Dev |
+| `ChilizWCHZ` | Chiliz mainnet | Deprecated by Azuro |
+| `ChilizSpicyWCHZ` | Chiliz Spicy testnet | Dev, deprecated by Azuro |
+| `BscUSDT` | BNB Chain mainnet | Deprecated by Azuro |
+| `BscDevUSDT` | BNB Chain devnet | Dev, deprecated by Azuro |
 
 ### Future Adapters
 
@@ -305,6 +330,15 @@ message ListLiveScoresResponse { repeated Event events = 1; }
 - `status` filters support the normalized status values.
 - Streaming RPCs for live push can be added in v3 when moving to WebSocket-first.
 
+### Service Endpoints
+
+| Endpoint | Port | Purpose | Access |
+|---|---|---|---|
+| gRPC `OddsFeedService` | `50052` | Internal API consumed by gateway/sportsbook | Internal only |
+| HTTP `/health` | `8082` | Health/readiness check | Internal only |
+
+There is no public REST API for oddsfeed; the gateway will expose sportsbook data through its own routes and forward internal requests via gRPC.
+
 ## 9. Redis Cache Model
 
 Redis keys:
@@ -322,20 +356,26 @@ TTLs:
 
 ## 10. Configuration
 
-Environment variables:
+Environment variables (the service reads these without the `ODDSFEED_` prefix inside the container; Docker Compose maps `ODDSFEED_*` to the bare names):
+
+| Variable | Description | Example |
+|---|---|---|
+| `ODDSFEED_PROVIDERS` | Comma-separated enabled providers | `azuro` |
+| `ODDSFEED_AZURO_GRAPH_URL` | Azuro Backend API base URL | `https://api.onchainfeed.org/api/v1/public` |
+| `ODDSFEED_AZURO_WS_URL` | Azuro WebSocket URL | `wss://streams.onchainfeed.org/v1/streams` |
+| `ODDSFEED_AZURO_ENVIRONMENT` | Azuro environment (see table in §5) | `PolygonUSDT` |
+| `ODDSFEED_SYNC_INTERVAL_SECONDS` | Polling interval | `60` |
+| `ODDSFEED_WS_RECONNECT_MAX_SECONDS` | Max reconnect backoff | `300` |
+
+Internal-only variables set by `docker-compose.yml`:
 
 | Variable | Description | Example |
 |---|---|---|
 | `PORT` | HTTP health port | `8082` |
 | `GRPC_PORT` | gRPC port | `50052` |
-| `ODDSFEED_DATABASE_URL` | Postgres connection | `postgres://wallet:wallet@postgres:5432/oddsfeed?sslmode=disable` |
-| `ODDSFEED_REDIS_ADDR` | Redis address | `redis:6379` |
-| `ODDSFEED_NATS_URL` | NATS URL | `nats://nats:4222` |
-| `ODDSFEED_PROVIDERS` | Comma-separated enabled providers | `azuro,mock` |
-| `ODDSFEED_AZURO_GRAPH_URL` | Azuro Graph API base URL | `https://...` |
-| `ODDSFEED_AZURO_WS_URL` | Azuro WebSocket URL | `wss://...` |
-| `ODDSFEED_SYNC_INTERVAL_SECONDS` | Polling interval | `60` |
-| `ODDSFEED_WS_RECONNECT_MAX_SECONDS` | Max reconnect backoff | `300` |
+| `DATABASE_URL` | Postgres connection | `postgres://wallet:wallet@postgres:5432/oddsfeed?sslmode=disable` |
+| `REDIS_ADDR` | Redis address | `redis:6379` |
+| `NATS_URL` | NATS URL | `nats://nats:4222` |
 
 ## 11. Error Handling & Reliability
 
