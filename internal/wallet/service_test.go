@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestServiceCreditWallet(t *testing.T) {
@@ -218,4 +219,33 @@ func TestServiceUnsupportedCurrency(t *testing.T) {
 	_, err = svc.RequestWithdrawal(ctx, "user-1", "BTC", "10", "0x123", "anvil")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported currency-chain pair")
+}
+
+func TestServiceCreditWalletInvalidAmount(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "invalid", "dx-1", nil)
+	assert.Error(t, err)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
+	assert.Equal(t, "0", wallet.Balance)
+}
+
+func TestServiceDebitWalletInvalidAmount(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	_, err = svc.DebitWallet(ctx, "user-1", "USDT", "invalid", "wd-1")
+	assert.Error(t, err)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
+	assert.Equal(t, "100", wallet.Balance)
 }

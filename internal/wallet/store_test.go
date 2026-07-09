@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateWallet(t *testing.T) {
@@ -32,5 +33,49 @@ func TestCreditWallet(t *testing.T) {
 
 	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
 	assert.NoError(t, err)
+	assert.Equal(t, "100", wallet.Balance)
+}
+
+func TestDebitWallet(t *testing.T) {
+	store := NewInMemoryStore()
+	ctx := context.Background()
+
+	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	tx, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	require.NoError(t, err)
+	assert.Equal(t, "withdrawal", tx.Type)
+	assert.Equal(t, "60", tx.BalanceAfter)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
+	assert.Equal(t, "60", wallet.Balance)
+}
+
+func TestCreditWalletInvalidAmount(t *testing.T) {
+	store := NewInMemoryStore()
+	ctx := context.Background()
+
+	_, err := store.CreditWallet(ctx, "user-1", "USDT", "invalid", "dx-1", nil)
+	assert.Error(t, err)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
+	assert.Equal(t, "0", wallet.Balance)
+}
+
+func TestDebitWalletInvalidAmount(t *testing.T) {
+	store := NewInMemoryStore()
+	ctx := context.Background()
+
+	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	_, err = store.DebitWallet(ctx, "user-1", "USDT", "invalid", "wd-1")
+	assert.Error(t, err)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
 	assert.Equal(t, "100", wallet.Balance)
 }
