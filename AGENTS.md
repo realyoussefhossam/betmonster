@@ -14,10 +14,11 @@ Build an **open-source, self-hosted sportsbook/casino platform** — similar to 
 - **Next.js + Better Auth**: auth, sessions, UI, admin dashboard.
 - **Go gateway service**: JWT verification via Better Auth JWKS, routes to internal services.
 - **Go wallet service**: owns wallet DB, balance, ledger, deposits, withdrawals.
+- **Go Odds/Feed service**: ingests external sports data (Azuro as the first provider), normalizes it into an internal model, and exposes sports/odds via gRPC to the gateway and future sportsbook service.
 - **xcash**: self-hosted crypto payment gateway used **only for deposits**.
 - **NATS**: events between services.
 - **Redis**: cache and idempotency.
-- **Postgres**: two logical databases — one for Better Auth (Next.js/Prisma), one for the wallet service.
+- **Postgres**: Better Auth (Next.js/Prisma), wallet service, and oddsfeed service databases.
 
 ## Key Decisions
 
@@ -43,7 +44,7 @@ Build an **open-source, self-hosted sportsbook/casino platform** — similar to 
 | **Notifications** | Webhooks, emails, SMS | v2 |
 | **Admin** | Operator dashboard, user management, reports | v2 |
 | **Reporting** | Analytics, audit logs, compliance | v3 |
-| **Odds/Feed** | External sports data ingestion | v3 |
+| **Odds/Feed** | External sports data ingestion | v2 |
 | **Scheduler** | Cron jobs, event triggers | v3 |
 
 **Wallet service roadmap:** `docs/superpowers/specs/2026-07-04-wallet-microservice-roadmap.md`  
@@ -90,6 +91,7 @@ Rules for money-related code:
   - JWT verification only in the gateway.
   - Internal services must not be publicly reachable.
   - Use mTLS or internal VPC for gateway ↔ wallet in production.
+  - Gateway forwards authenticated caller identity to the wallet gRPC service via metadata. The wallet service validates the caller user ID and requires admin metadata for admin-only RPCs.
   - Reach xcash over a private Docker network (e.g., `xcash_public`) in production/self-hosted deployments; avoid routing deposit address requests through the public internet or host loopback.
   - Validate xcash webhook HMAC signature.
   - Never log private keys or webhook secrets.
