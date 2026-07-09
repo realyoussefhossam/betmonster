@@ -353,14 +353,14 @@ func normalizeConditionState(state string) string {
 	switch state {
 	case "Active":
 		return "active"
-	case "Paused":
+	case "Paused", "Stopped":
 		return "suspended"
 	case "Resolved":
 		return "settled"
-	case "Canceled":
+	case "Canceled", "Removed":
 		return "cancelled"
 	default:
-		return strings.ToLower(state)
+		return "cancelled"
 	}
 }
 
@@ -372,10 +372,10 @@ func normalizeOutcomeState(state string) string {
 		return "won"
 	case "Lost":
 		return "lost"
-	case "Canceled":
+	case "Canceled", "Removed":
 		return "cancelled"
 	default:
-		return strings.ToLower(state)
+		return "cancelled"
 	}
 }
 
