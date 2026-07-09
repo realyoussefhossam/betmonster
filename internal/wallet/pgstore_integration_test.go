@@ -194,6 +194,54 @@ func TestPGStoreDebitWalletIdempotent(t *testing.T) {
 	assert.Len(t, transactions, 2)
 }
 
+func TestPGStoreDebitWalletIdempotentConcurrentSharedReference(t *testing.T) {
+	store, cleanup := setupPGStore(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	_, err := store.CreditWallet(ctx, "user-shared", "USDT", "100.00", "dx-shared", nil)
+	require.NoError(t, err)
+
+	const n = 20
+	var wg sync.WaitGroup
+	wg.Add(n)
+
+	var errCount atomic.Int64
+	var mu sync.Mutex
+	var ids []string
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			tx, err := store.DebitWallet(ctx, "user-shared", "USDT", "10.00", "wd-shared")
+			if err != nil {
+				errCount.Add(1)
+				t.Errorf("debit failed: %v", err)
+				return
+			}
+			mu.Lock()
+			ids = append(ids, tx.ID)
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	require.Zero(t, errCount.Load(), "concurrent shared-reference debit produced errors")
+	require.NotEmpty(t, ids, "at least one debit must succeed")
+
+	firstID := ids[0]
+	for _, id := range ids {
+		assert.Equal(t, firstID, id, "all debits with the same reference_id must return the same transaction ID")
+	}
+
+	wallet, err := store.GetWallet(ctx, "user-shared", "USDT")
+	require.NoError(t, err)
+	assertDecimalEqual(t, "90.00", wallet.Balance, "final balance must reflect exactly one debit")
+
+	transactions, err := store.ListTransactions(ctx, "user-shared", 1, 10)
+	require.NoError(t, err)
+	assert.Len(t, transactions, 2, "expected exactly one credit and one debit")
+}
+
 func TestPGStoreDebitWalletInsufficientBalance(t *testing.T) {
 	store, cleanup := setupPGStore(t)
 	defer cleanup()
