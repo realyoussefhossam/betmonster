@@ -2,7 +2,10 @@ package wallet
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 	"github.com/realyoussefhossam/betmonster/internal/shared/grpcmeta"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
+	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
 )
 
 func TestGRPCServerGetBalance(t *testing.T) {
@@ -260,4 +264,125 @@ func TestAuthInterceptorAllowsSystemCalls(t *testing.T) {
 	resp, err := client.GetRates(ctx, &pb.GetRatesRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, "USD", resp.FiatCurrency)
+}
+
+func TestAuthInterceptorAdminMethodRequiresAdminMetadata(t *testing.T) {
+	ctx := metadata.AppendToOutgoingContext(context.Background(), grpcmeta.UserIDHeader, "gateway")
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+	server := NewGRPCServer(svc, nil)
+
+	listener := bufconn.Listen(1024)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(AuthInterceptor))
+	pb.RegisterWalletServiceServer(grpcServer, server)
+
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("grpc server error: %v", err)
+		}
+	}()
+	defer grpcServer.Stop()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := pb.NewWalletServiceClient(conn)
+	_, err = client.ListPendingWithdrawals(ctx, &pb.ListPendingWithdrawalsRequest{})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, st.Code())
+	assert.Contains(t, st.Message(), "admin metadata required")
+}
+
+func TestAuthInterceptorAdminMethodSucceedsWithAdminMetadata(t *testing.T) {
+	ctx := metadata.AppendToOutgoingContext(context.Background(), grpcmeta.UserIDHeader, "gateway", grpcmeta.IsAdminHeader, "true")
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+	server := NewGRPCServer(svc, nil)
+
+	listener := bufconn.Listen(1024)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(AuthInterceptor))
+	pb.RegisterWalletServiceServer(grpcServer, server)
+
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("grpc server error: %v", err)
+		}
+	}()
+	defer grpcServer.Stop()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := pb.NewWalletServiceClient(conn)
+	resp, err := client.ListPendingWithdrawals(ctx, &pb.ListPendingWithdrawalsRequest{})
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Empty(t, resp.Withdrawals)
+}
+
+func TestAuthInterceptorSystemCallsWithoutUserMatch(t *testing.T) {
+	key := "test-webhook-key"
+	validator := xcash.NewWebhookValidator(key)
+
+	bodyMap := map[string]any{
+		"type": "deposit",
+		"data": map[string]any{
+			"sys_no":     "sys-1",
+			"uid":        "user-1",
+			"chain":      "anvil",
+			"block":      1,
+			"hash":       "0xabc",
+			"crypto":     "USDT",
+			"amount":     "10.00",
+			"confirmed":  false,
+			"risk_level": "low",
+			"risk_score": "0",
+		},
+	}
+	body, err := json.Marshal(bodyMap)
+	require.NoError(t, err)
+
+	nonce := hex.EncodeToString([]byte("nonce-1"))
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	signature := xcash.Sign(nonce+timestamp+string(body), key)
+	headers := map[string]string{
+		"XC-Nonce":     nonce,
+		"XC-Timestamp": timestamp,
+		"XC-Signature": signature,
+	}
+
+	ctx := metadata.AppendToOutgoingContext(context.Background(), grpcmeta.UserIDHeader, "gateway")
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, validator, []string{"USDT:anvil"})
+	server := NewGRPCServer(svc, nil)
+
+	listener := bufconn.Listen(1024)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(AuthInterceptor))
+	pb.RegisterWalletServiceServer(grpcServer, server)
+
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("grpc server error: %v", err)
+		}
+	}()
+	defer grpcServer.Stop()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := pb.NewWalletServiceClient(conn)
+	resp, err := client.ProcessDepositWebhook(ctx, &pb.ProcessDepositWebhookRequest{Body: string(body), Headers: headers})
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
 }

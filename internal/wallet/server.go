@@ -46,9 +46,25 @@ func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServe
 	}
 	callerID := userIDs[0]
 
-	if reqWithUser, ok := req.(userIDRequest); ok {
-		if reqUserID := reqWithUser.GetUserId(); reqUserID != "" && reqUserID != callerID {
-			return nil, status.Error(codes.PermissionDenied, "caller user id does not match request user id")
+	isAdmin := false
+	if adminVals := md.Get(grpcmeta.IsAdminHeader); len(adminVals) > 0 {
+		isAdmin = adminVals[0] == "true"
+	}
+
+	switch info.FullMethod {
+	case pb.WalletService_ListPendingWithdrawals_FullMethodName,
+		pb.WalletService_ReviewWithdrawal_FullMethodName:
+		if !isAdmin {
+			return nil, status.Error(codes.PermissionDenied, "admin metadata required")
+		}
+	case pb.WalletService_GetRates_FullMethodName,
+		pb.WalletService_ProcessDepositWebhook_FullMethodName:
+		// System methods are allowed without a user_id match.
+	default:
+		if reqWithUser, ok := req.(userIDRequest); ok {
+			if reqUserID := reqWithUser.GetUserId(); reqUserID != "" && reqUserID != callerID {
+				return nil, status.Error(codes.PermissionDenied, "caller user id does not match request user id")
+			}
 		}
 	}
 
