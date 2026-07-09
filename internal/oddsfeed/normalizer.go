@@ -18,14 +18,14 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 
 	sportIDs := map[string]string{}
 	for _, sp := range snap.Sports {
-		id := uuid.NewString()
+		id := deterministicID(snap.Provider, "sport:"+sp.ProviderID)
 		sportIDs[sp.ProviderID] = id
 		sports = append(sports, Sport{ID: id, Provider: snap.Provider, ProviderSportID: sp.ProviderID, Slug: sp.Slug, Name: sp.Name})
 	}
 
 	leagueIDs := map[string]string{}
 	for _, l := range snap.Leagues {
-		id := uuid.NewString()
+		id := deterministicID(snap.Provider, "league:"+l.ProviderID)
 		leagueIDs[l.ProviderID] = id
 		sportID, ok := sportIDs[l.SportID]
 		if !ok {
@@ -36,7 +36,7 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 
 	eventIDs := map[string]string{}
 	for _, e := range snap.Events {
-		id := uuid.NewString()
+		id := deterministicID(snap.Provider, "event:"+e.ProviderID)
 		eventIDs[e.ProviderID] = id
 		startsAt, err := time.Parse(time.RFC3339, e.StartsAt)
 		if err != nil {
@@ -68,7 +68,7 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 
 	marketIDs := map[string]string{}
 	for _, m := range snap.Markets {
-		id := uuid.NewString()
+		id := deterministicID(snap.Provider, "market:"+m.ProviderID)
 		marketIDs[m.ProviderID] = id
 		eventID, ok := eventIDs[m.EventID]
 		if !ok {
@@ -83,9 +83,13 @@ func NormalizeSnapshot(snap *Snapshot) ([]Sport, []League, []Event, []Market, []
 			return nil, nil, nil, nil, nil, fmt.Errorf("outcome %s references unknown market %s", o.ProviderID, o.MarketID)
 		}
 		outcomes = append(outcomes, Outcome{
-			ID: uuid.NewString(), Provider: snap.Provider, ProviderOutcomeID: o.ProviderID,
+			ID: deterministicID(snap.Provider, "outcome:"+o.ProviderID), Provider: snap.Provider, ProviderOutcomeID: o.ProviderID,
 			MarketID: marketID, Name: o.Name, Odds: o.Odds, Status: o.Status, Metadata: o.Metadata,
 		})
 	}
 	return sports, leagues, events, markets, outcomes, nil
+}
+
+func deterministicID(provider, key string) string {
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(provider+":"+key)).String()
 }
