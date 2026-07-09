@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"net"
@@ -12,6 +13,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -58,7 +60,15 @@ func main() {
 
 	store := wallet.NewPGStore(db)
 	xc := xcash.NewClient(cfg.XCashBaseURL, cfg.XCashAppID, cfg.XCashHMACKey)
-	validator := xcash.NewWebhookValidator(cfg.XCashWebhookSecret)
+	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		cancel()
+		logger.Error("failed to ping redis", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	cancel()
+	validator := xcash.NewWebhookValidator(cfg.XCashWebhookSecret).WithRedis(redisClient)
 	pairs := splitTrim(cfg.SupportedPairs)
 	svc := wallet.NewService(store, xc, validator, pairs)
 
@@ -82,7 +92,7 @@ func main() {
 		rates.NewKuCoin(),
 	)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(wallet.AuthInterceptor))
 	proto.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, aggregator))
 
 	go startHealthServer(logger, cfg.Port)

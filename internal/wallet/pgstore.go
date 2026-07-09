@@ -97,7 +97,10 @@ func (s *PGStore) CreditWallet(ctx context.Context, userID, currency, amount, re
 		return nil, fmt.Errorf("get wallet: %w", err)
 	}
 
-	newBalance := addDecimal(w.Balance, amount)
+	newBalance, err := addDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("credit wallet: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		newBalance, w.ID, w.Version,
@@ -126,6 +129,23 @@ func (s *PGStore) CreditWallet(ctx context.Context, userID, currency, amount, re
 	`
 	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID, metadata).Scan(&txn.ID, &txn.CreatedAt)
 	if err != nil {
+		if referenceID != "" {
+			var existingID string
+			err := tx.QueryRowContext(ctx, "SELECT id FROM transactions WHERE reference_id = $1", referenceID).Scan(&existingID)
+			if err == nil {
+				txn, err := s.getTransactionByID(ctx, tx, existingID)
+				if err != nil {
+					return nil, fmt.Errorf("get existing transaction: %w", err)
+				}
+				if err := tx.Commit(); err != nil {
+					return nil, fmt.Errorf("commit: %w", err)
+				}
+				return txn, nil
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("check reference id after insert failure: %w", err)
+			}
+		}
 		return nil, fmt.Errorf("insert transaction: %w", err)
 	}
 
@@ -152,6 +172,24 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 	}
 	defer tx.Rollback()
 
+	if referenceID != "" {
+		var existingID string
+		err := tx.QueryRowContext(ctx, "SELECT id FROM transactions WHERE reference_id = $1", referenceID).Scan(&existingID)
+		if err == nil {
+			txn, err := s.getTransactionByID(ctx, tx, existingID)
+			if err != nil {
+				return nil, fmt.Errorf("get existing transaction: %w", err)
+			}
+			if err := tx.Commit(); err != nil {
+				return nil, fmt.Errorf("commit: %w", err)
+			}
+			return txn, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("check reference id: %w", err)
+		}
+	}
+
 	var w Wallet
 	err = tx.QueryRowContext(ctx,
 		"SELECT id, balance, version FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE",
@@ -176,7 +214,10 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 		return nil, ErrInsufficientBalance
 	}
 
-	newBalance := subDecimal(w.Balance, amount)
+	newBalance, err := subDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("debit wallet: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		newBalance, w.ID, w.Version,
@@ -205,6 +246,23 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 	`
 	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID).Scan(&txn.ID, &txn.CreatedAt)
 	if err != nil {
+		if referenceID != "" {
+			var existingID string
+			err := tx.QueryRowContext(ctx, "SELECT id FROM transactions WHERE reference_id = $1", referenceID).Scan(&existingID)
+			if err == nil {
+				txn, err := s.getTransactionByID(ctx, tx, existingID)
+				if err != nil {
+					return nil, fmt.Errorf("get existing transaction: %w", err)
+				}
+				if err := tx.Commit(); err != nil {
+					return nil, fmt.Errorf("commit: %w", err)
+				}
+				return txn, nil
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("check reference id after insert failure: %w", err)
+			}
+		}
 		return nil, fmt.Errorf("insert transaction: %w", err)
 	}
 
@@ -317,7 +375,10 @@ func (s *PGStore) RequestWithdrawal(ctx context.Context, userID, currency, amoun
 		return nil, ErrInsufficientBalance
 	}
 
-	newBalance := subDecimal(w.Balance, amount)
+	newBalance, err := subDecimal(w.Balance, amount)
+	if err != nil {
+		return nil, fmt.Errorf("debit wallet for withdrawal: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		newBalance, w.ID, w.Version,
@@ -450,7 +511,10 @@ func (s *PGStore) RejectWithdrawal(ctx context.Context, id, reviewedBy string) (
 		return nil, fmt.Errorf("get wallet: %w", err)
 	}
 
-	reversedBalance := addDecimal(w.Balance, req.Amount)
+	reversedBalance, err := addDecimal(w.Balance, req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("reverse withdrawal debit: %w", err)
+	}
 	res, err := tx.ExecContext(ctx,
 		"UPDATE wallets SET balance = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3",
 		reversedBalance, w.ID, w.Version,

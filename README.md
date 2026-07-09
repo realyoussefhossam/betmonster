@@ -114,6 +114,9 @@ This starts:
 # Run all Go tests
 make test
 
+# Run wallet integration tests against a real Postgres (requires TEST_DATABASE_URL)
+make integration-test
+
 # Build all binaries
 make build
 

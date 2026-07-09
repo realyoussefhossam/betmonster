@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -77,11 +79,11 @@ func TestHandleDepositAddressUnsupportedPair(t *testing.T) {
 func TestHandleXcashWebhookParsesNestedAmount(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	// Spin up a local wallet gRPC server so the gateway can forward webhooks.
+	// Spin up a local wallet gRPC server with auth interceptor so the gateway's metadata is verified.
 	store := wallet.NewInMemoryStore()
 	validator := xcash.NewWebhookValidator("hmac-key")
 	svc := wallet.NewService(store, nil, validator, []string{"USDT:anvil"})
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(wallet.AuthInterceptor))
 	pb.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, nil))
 
 	listener := bufconn.Listen(1024)
@@ -102,11 +104,12 @@ func TestHandleXcashWebhookParsesNestedAmount(t *testing.T) {
 	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	body := `{"type":"deposit","data":{"sys_no":"DXC1","uid":"u1","amount":"10","crypto":"USDT","chain":"anvil","confirmed":true,"hash":"0xabc","block":1,"risk_level":null,"risk_score":null}}`
-	sig := xcash.Sign("nonce"+"1234567890"+body, "hmac-key")
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	sig := xcash.Sign("nonce"+timestamp+body, "hmac-key")
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/xcash/deposit", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("XC-Nonce", "nonce")
-	req.Header.Set("XC-Timestamp", "1234567890")
+	req.Header.Set("XC-Timestamp", timestamp)
 	req.Header.Set("XC-Signature", sig)
 	w := httptest.NewRecorder()
 
@@ -119,12 +122,12 @@ func TestHandleXcashWebhookParsesNestedAmount(t *testing.T) {
 func TestHandleRatesPublicEndpoint(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	// Spin up a local wallet gRPC server with a rates aggregator.
+	// Spin up a local wallet gRPC server with auth interceptor so the gateway's metadata is verified.
 	store := wallet.NewInMemoryStore()
 	validator := xcash.NewWebhookValidator("hmac-key")
 	svc := wallet.NewService(store, nil, validator, []string{"USDT:anvil"})
 	agg := rates.NewAggregator(rates.NewCache(time.Hour), rates.NewForexChain())
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(wallet.AuthInterceptor))
 	pb.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, agg))
 
 	listener := bufconn.Listen(1024)
@@ -154,4 +157,44 @@ func TestHandleRatesPublicEndpoint(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "USD")
 	assert.Contains(t, w.Body.String(), "rates")
 	assert.Contains(t, w.Body.String(), "USDT")
+}
+
+func TestGatewayForwardsCallerIdentityToWallet(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	// Spin up a wallet gRPC server with the auth interceptor.
+	store := wallet.NewInMemoryStore()
+	_, err := store.CreditWallet(context.Background(), "user-42", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	svc := wallet.NewService(store, nil, nil, []string{"USDT:anvil"})
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(wallet.AuthInterceptor))
+	pb.RegisterWalletServiceServer(grpcServer, wallet.NewGRPCServer(svc, nil))
+
+	listener := bufconn.Listen(1024)
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("grpc server error: %v", err)
+		}
+	}()
+	defer grpcServer.Stop()
+
+	conn, err := grpc.Dial("bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	walletClient := &WalletClient{conn: pb.NewWalletServiceClient(conn)}
+	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/wallet/balance", nil)
+	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-42"}))
+	w := httptest.NewRecorder()
+
+	// Call the handler directly so we do not need a real JWKS client.
+	srv.handleBalance(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "100")
 }

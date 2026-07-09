@@ -2,9 +2,12 @@ package wallet
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestServiceCreditWallet(t *testing.T) {
@@ -55,6 +58,71 @@ func TestServiceDebitWallet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "withdrawal", tx.Type)
 	assert.Equal(t, "60", tx.BalanceAfter)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, "60", wallet.Balance)
+}
+
+func TestServiceDebitWalletIdempotent(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	assert.NoError(t, err)
+
+	tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "withdrawal", tx.Type)
+	assert.Equal(t, "60", tx.BalanceAfter)
+
+	// idempotent
+	tx2, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	assert.NoError(t, err)
+	assert.Equal(t, tx.ID, tx2.ID)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	assert.NoError(t, err)
+	assert.Equal(t, "60", wallet.Balance)
+}
+
+func TestServiceDebitWalletConcurrent(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	assert.NoError(t, err)
+
+	const n = 10
+	var wg sync.WaitGroup
+	wg.Add(n)
+	var mu sync.Mutex
+	var results []*Transaction
+	var errCount atomic.Int64
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-concurrent")
+			if err != nil {
+				errCount.Add(1)
+				t.Errorf("debit failed: %v", err)
+				return
+			}
+			mu.Lock()
+			results = append(results, tx)
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	require.Zero(t, errCount.Load(), "no debit goroutine should error")
+	assert.NotEmpty(t, results, "at least one debit must succeed")
+	firstID := results[0].ID
+	for _, tx := range results {
+		assert.Equal(t, firstID, tx.ID, "all successful debits with the same reference_id must return the same transaction")
+	}
 
 	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
 	assert.NoError(t, err)
@@ -218,4 +286,33 @@ func TestServiceUnsupportedCurrency(t *testing.T) {
 	_, err = svc.RequestWithdrawal(ctx, "user-1", "BTC", "10", "0x123", "anvil")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported currency-chain pair")
+}
+
+func TestServiceCreditWalletInvalidAmount(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "invalid", "dx-1", nil)
+	assert.Error(t, err)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
+	assert.Equal(t, "0", wallet.Balance)
+}
+
+func TestServiceDebitWalletInvalidAmount(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+
+	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	_, err = svc.DebitWallet(ctx, "user-1", "USDT", "invalid", "wd-1")
+	assert.Error(t, err)
+
+	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
+	require.NoError(t, err)
+	assert.Equal(t, "100", wallet.Balance)
 }

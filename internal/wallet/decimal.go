@@ -1,15 +1,31 @@
 package wallet
 
-import "github.com/shopspring/decimal"
+import (
+	"fmt"
 
-func addDecimal(a, b string) string {
-	da, _ := decimal.NewFromString(a)
-	db, _ := decimal.NewFromString(b)
-	return da.Add(db).String()
+	"github.com/shopspring/decimal"
+)
+
+func addDecimal(a, b string) (string, error) {
+	da, err := decimal.NewFromString(a)
+	if err != nil {
+		return "", fmt.Errorf("parse amount %q: %w", a, err)
+	}
+	db, err := decimal.NewFromString(b)
+	if err != nil {
+		return "", fmt.Errorf("parse amount %q: %w", b, err)
+	}
+	return da.Add(db).String(), nil
 }
 
-func subDecimal(a, b string) string {
-	da, _ := decimal.NewFromString(a)
-	db, _ := decimal.NewFromString(b)
-	return da.Sub(db).String()
+func subDecimal(a, b string) (string, error) {
+	da, err := decimal.NewFromString(a)
+	if err != nil {
+		return "", fmt.Errorf("parse amount %q: %w", a, err)
+	}
+	db, err := decimal.NewFromString(b)
+	if err != nil {
+		return "", fmt.Errorf("parse amount %q: %w", b, err)
+	}
+	return da.Sub(db).String(), nil
 }
