@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,11 +100,14 @@ func TestServiceDebitWalletConcurrent(t *testing.T) {
 	wg.Add(n)
 	var mu sync.Mutex
 	var results []*Transaction
+	var errCount atomic.Int64
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
 			tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-concurrent")
 			if err != nil {
+				errCount.Add(1)
+				t.Errorf("debit failed: %v", err)
 				return
 			}
 			mu.Lock()
@@ -113,6 +117,7 @@ func TestServiceDebitWalletConcurrent(t *testing.T) {
 	}
 	wg.Wait()
 
+	require.Zero(t, errCount.Load(), "no debit goroutine should error")
 	assert.NotEmpty(t, results, "at least one debit must succeed")
 	firstID := results[0].ID
 	for _, tx := range results {
