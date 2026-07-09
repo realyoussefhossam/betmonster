@@ -201,6 +201,19 @@ func (s *memoryStore) UpdateOutcomeStatus(ctx context.Context, provider, provide
 	return o.MarketID, o.ID, nil
 }
 
+func (s *memoryStore) UpdateEventStatus(ctx context.Context, provider, providerEventID, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := eventKey(provider, providerEventID)
+	e, ok := s.events[key]
+	if !ok {
+		return fmt.Errorf("update event status: not found")
+	}
+	e.Status = status
+	e.UpdatedAt = now()
+	return nil
+}
+
 func (s *memoryStore) GetEventStatusesByProvider(ctx context.Context, provider string) (map[string]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
