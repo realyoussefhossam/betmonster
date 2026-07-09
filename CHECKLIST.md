@@ -1,4 +1,4 @@
-# BetMonster — v1 Wallet Microservice Checklist
+# BetMonster — v1 Wallet + v2 Odds/Feed Checklist
 
 ## v1 Wallet Microservice
 
@@ -19,7 +19,7 @@
 
 ### Gateway Service
 - [x] Verify JWT via Better Auth JWKS endpoint.
-- [ ] Forward user context to wallet service via gRPC metadata.
+- [x] Forward user context to wallet service via gRPC metadata.
 - [x] Expose public HTTP endpoints: `/api/wallet/*`, `/api/admin/*`, `/webhooks/xcash/*`.
 - [x] Add admin authorization middleware.
 - [x] Add structured logging.
@@ -52,7 +52,7 @@
 ### Testing
 - [x] Unit tests: wallet credit/debit, idempotency.
 - [x] Unit tests: rejection reversal.
-- [ ] Unit tests: concurrent wallet credit/debit.
+- [x] Unit tests: concurrent wallet credit/debit (via PGStore integration tests).
 - [x] gRPC contract tests.
 - [x] Mocked xcash webhook integration tests.
 - [ ] End-to-end Docker Compose test for deposit flow.
@@ -85,8 +85,21 @@
 | **Notifications** | Webhooks, emails, SMS | v2 |
 | **Admin** | Operator dashboard, user management, reports | v2 |
 | **Reporting** | Analytics, audit logs, compliance | v3 |
-| **Odds/Feed** | External sports data ingestion | v3 |
+| **Odds/Feed** | External sports data ingestion | v2 |
 | **Scheduler** | Cron jobs, event triggers | v3 |
+
+## v2 Odds/Feed Microservice
+
+### Odds/Feed Service
+- [x] Add `cmd/oddsfeed` entrypoint.
+- [x] Add Odds/Feed Postgres schema and migrations.
+- [x] Add gRPC contract and generated code.
+- [x] Implement Azuro provider adapter and mock provider.
+- [x] Implement normalized sports/leagues/events/markets/outcomes store.
+- [x] Add polling scheduler and WebSocket live worker.
+- [x] Add Redis live cache and NATS event bus.
+- [x] Add public sportsbook REST routes in the gateway.
+- [x] Add gateway → oddsfeed gRPC client.
 
 **Wallet service roadmap:** `docs/superpowers/specs/2026-07-04-wallet-microservice-roadmap.md`  
 **Full platform roadmap:** `docs/superpowers/specs/2026-07-04-betmonster-roadmap.md`

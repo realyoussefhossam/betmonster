@@ -2,7 +2,7 @@
 
 # BetMonster
 
-BetMonster is an open-source, self-hosted sportsbook/casino platform. The v1 focus is a **wallet microservice** that supports USDT/USDC deposits via [xcash](https://github.com/xca-sh/xcash) and manual admin withdrawals.
+BetMonster is an open-source, self-hosted sportsbook/casino platform. The v1 focus is a **wallet microservice** that supports USDT/USDC deposits via [xcash](https://github.com/xca-sh/xcash) and manual admin withdrawals. v2 adds the **Odds/Feed microservice** to ingest, normalize, and serve sports fixtures, odds, markets, and live scores via a public sportsbook REST API.
 
 ## Supported Assets
 
@@ -55,12 +55,13 @@ BTC, SOL, LTC, DOGE, XRP, AVAX, and TON require non-EVM/non-Tron pipeline work a
 - **Next.js + Better Auth**: auth, sessions, UI, admin dashboard.
 - **Go Gateway**: JWT verification via Better Auth JWKS, public HTTP API, routes to wallet.
 - **Go Wallet**: owns wallet DB, balances, ledger, deposits, withdrawals.
+- **Go Odds/Feed**: ingests external sports data (Azuro as the first provider), normalizes it into an internal model, and exposes sports/odds via gRPC to the gateway and future sportsbook service.
 - **xcash**: self-hosted crypto payment gateway used only for deposits.
-- **Postgres**: Better Auth (Next.js/Prisma) and wallet service databases.
+- **Postgres**: Better Auth (Next.js/Prisma), wallet service, and oddsfeed service databases.
 - **Redis**: cache and idempotency (v1 lays the groundwork).
 - **NATS**: events between services (v1 lays the groundwork).
 
-Internal gateway → wallet communication uses **gRPC**.
+Internal gateway → wallet and gateway → oddsfeed communication uses **gRPC**.
 
 ## Quick Start (Docker Compose)
 
@@ -83,6 +84,7 @@ This starts:
 - Next.js app on http://localhost:3000
 - Gateway on http://localhost:8080
 - Wallet gRPC on localhost:50051 and health on http://localhost:8081
+- Odds/Feed gRPC on localhost:50052 and health on http://localhost:8082
 - Postgres on localhost:5433
 - Redis on localhost:6379
 - NATS on localhost:4222
@@ -101,7 +103,11 @@ This starts:
    ```bash
    go run ./cmd/gateway
    ```
-4. Start the Next.js app:
+4. Start the oddsfeed service:
+   ```bash
+   go run ./cmd/oddsfeed
+   ```
+5. Start the Next.js app:
    ```bash
    cd app
    npm install
@@ -117,7 +123,7 @@ make test
 # Run wallet integration tests against a real Postgres (requires TEST_DATABASE_URL)
 make integration-test
 
-# Build all binaries
+# Build all binaries (gateway, wallet, oddsfeed)
 make build
 
 # Run wallet migrations
@@ -173,9 +179,22 @@ The bootstrap is idempotent: it recreates the anvil chain record, deploys USDT/U
 | `POST /api/admin/withdrawals/review` | Approve/reject a withdrawal (admin only) |
 | `POST /webhooks/xcash/deposit` | xcash deposit webhook |
 
+## Sportsbook Endpoints
+
+| Gateway Endpoint | Description |
+|------------------|-------------|
+| `GET /api/sports` | List sports |
+| `GET /api/sports/{sport_id}/leagues` | List leagues for a sport |
+| `GET /api/events` | List events (filter by `sport_id`, `league_id`, `status`) |
+| `GET /api/events/{event_id}` | Get a single event |
+| `GET /api/events/{event_id}/markets` | List markets for an event |
+| `GET /api/markets/{market_id}/outcomes` | List outcomes for a market |
+| `GET /api/live/events` | List currently live events with scores |
+
 ## Docs
 
 - [Wallet microservice design](docs/superpowers/specs/2026-07-04-wallet-microservice-design.md)
+- [Odds/Feed microservice design](docs/superpowers/specs/2026-07-06-oddsfeed-microservice-design.md)
 - [Wallet microservice roadmap](docs/superpowers/specs/2026-07-04-wallet-microservice-roadmap.md)
 - [Platform roadmap](docs/superpowers/specs/2026-07-04-betmonster-roadmap.md)
 - [CHECKLIST.md](CHECKLIST.md)

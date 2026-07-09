@@ -4,6 +4,7 @@ build:
 	mkdir -p bin
 	go build -o bin/gateway ./cmd/gateway
 	go build -o bin/wallet ./cmd/wallet
+	go build -o bin/oddsfeed ./cmd/oddsfeed
 
 test:
 	go test ./...
