@@ -109,7 +109,7 @@ func (s *PGStore) UpsertEvent(ctx context.Context, e Event) (string, error) {
 	scoreUpdated := sql.NullTime{Time: e.ScoreUpdatedAt, Valid: !e.ScoreUpdatedAt.IsZero()}
 	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO events (id, provider, provider_event_id, league_id, sport_id, home_participant, away_participant, starts_at, status, home_score, away_score, score_updated_at, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		ON CONFLICT (provider, provider_event_id) DO UPDATE SET
 			league_id = EXCLUDED.league_id,
 			sport_id = EXCLUDED.sport_id,
