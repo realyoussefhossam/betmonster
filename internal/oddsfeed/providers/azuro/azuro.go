@@ -35,7 +35,7 @@ func New(baseURL, wsURL, environment string) *Provider {
 		baseURL:     baseURL,
 		wsURL:       wsURL,
 		environment: environment,
-		client:      &http.Client{Timeout: 30 * time.Second},
+		client:      &http.Client{Timeout: 2 * time.Minute},
 	}
 }
 
