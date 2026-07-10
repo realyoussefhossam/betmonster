@@ -5,7 +5,51 @@ import (
 	"time"
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/shared/grpcmeta"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
+
+// serviceCallerID is the sentinel user id propagated by trusted internal
+// services (e.g. the gateway) for privileged, non-end-user calls.
+const serviceCallerID = "gateway"
+
+// AuthInterceptor is a gRPC unary interceptor that requires every incoming
+// request to include authenticated caller metadata. SettleBet is restricted to
+// the trusted gateway service with admin scope; all other public methods must
+// be called by the trusted gateway service.
+func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing caller metadata")
+	}
+	userIDs := md.Get(grpcmeta.UserIDHeader)
+	if len(userIDs) == 0 || userIDs[0] == "" {
+		return nil, status.Error(codes.Unauthenticated, "missing caller user id")
+	}
+	callerID := userIDs[0]
+
+	isAdmin := false
+	if adminVals := md.Get(grpcmeta.IsAdminHeader); len(adminVals) > 0 {
+		isAdmin = adminVals[0] == "true"
+	}
+
+	switch info.FullMethod {
+	case pb.SportsbookService_SettleBet_FullMethodName:
+		if !isAdmin || callerID != serviceCallerID {
+			return nil, status.Error(codes.PermissionDenied, "admin service caller required")
+		}
+	default:
+		// All other public methods must be called by the trusted gateway service.
+		if callerID != serviceCallerID {
+			return nil, status.Error(codes.PermissionDenied, "service caller required")
+		}
+	}
+
+	return handler(ctx, req)
+}
 
 type GRPCServer struct {
 	pb.UnimplementedSportsbookServiceServer

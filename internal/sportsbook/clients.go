@@ -6,9 +6,15 @@ import (
 	"fmt"
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/shared/grpcmeta"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
+
+// gatewayCallerID is the sentinel user id propagated by trusted internal
+// services (e.g. the gateway) for privileged, non-end-user calls.
+const gatewayCallerID = "gateway"
 
 type GRPCWalletClient struct {
 	conn pb.WalletServiceClient
@@ -22,12 +28,17 @@ func NewGRPCWalletClient(addr string) (*GRPCWalletClient, error) {
 	return &GRPCWalletClient{conn: pb.NewWalletServiceClient(conn)}, nil
 }
 
-func (c *GRPCWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
+func (c *GRPCWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, meta map[string]any) error {
 	metadataJSON := ""
-	if metadata != nil {
-		b, _ := json.Marshal(metadata)
+	if meta != nil {
+		b, _ := json.Marshal(meta)
 		metadataJSON = string(b)
 	}
+	md := metadata.Pairs(
+		grpcmeta.UserIDHeader, gatewayCallerID,
+		grpcmeta.IsAdminHeader, "true",
+	)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 	_, err := c.conn.DebitWallet(ctx, &pb.DebitWalletRequest{
 		UserId:      userID,
 		Currency:    currency,
@@ -38,12 +49,17 @@ func (c *GRPCWalletClient) DebitWallet(ctx context.Context, userID, currency, am
 	return err
 }
 
-func (c *GRPCWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
+func (c *GRPCWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, meta map[string]any) error {
 	metadataJSON := ""
-	if metadata != nil {
-		b, _ := json.Marshal(metadata)
+	if meta != nil {
+		b, _ := json.Marshal(meta)
 		metadataJSON = string(b)
 	}
+	md := metadata.Pairs(
+		grpcmeta.UserIDHeader, gatewayCallerID,
+		grpcmeta.IsAdminHeader, "true",
+	)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 	_, err := c.conn.CreditWallet(ctx, &pb.CreditWalletRequest{
 		UserId:      userID,
 		Currency:    currency,

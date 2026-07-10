@@ -54,7 +54,7 @@ func main() {
 
 	svc := sportsbook.NewService(store, walletClient, oddsfeedClient)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(sportsbook.AuthInterceptor))
 	pb.RegisterSportsbookServiceServer(grpcServer, sportsbook.NewGRPCServer(svc))
 
 	go startHealthServer(logger, cfg.Port)
