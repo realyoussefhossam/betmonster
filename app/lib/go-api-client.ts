@@ -85,6 +85,93 @@ export interface ReviewWithdrawalResponse {
   status: string;
 }
 
+export interface Sport {
+  id: string;
+  name: string;
+}
+
+export interface League {
+  id: string;
+  name: string;
+}
+
+export interface Event {
+  id: string;
+  sportId: string;
+  leagueId: string;
+  homeTeam: string;
+  awayTeam: string;
+  startTime: string;
+  status: string;
+  liveMinute?: number;
+}
+
+export interface Outcome {
+  id: string;
+  name: string;
+  odds: string;
+  status: string;
+}
+
+export interface Market {
+  id: string;
+  eventId: string;
+  name: string;
+  status: string;
+  outcomes: Outcome[];
+}
+
+export interface Bet {
+  id: string;
+  userId: string;
+  eventId: string;
+  marketId: string;
+  outcomeId: string;
+  odds: string;
+  stake: string;
+  potentialPayout: string;
+  currency: string;
+  status: string;
+  referenceId: string;
+  debitTransactionId?: string;
+  creditTransactionId?: string;
+  createdAt: string;
+  settledAt?: string;
+}
+
+export interface EventsResponse {
+  events: Event[];
+}
+
+export interface MarketsResponse {
+  markets: Market[];
+}
+
+export interface BetsResponse {
+  bets: Bet[];
+}
+
+export interface PlaceBetRequest {
+  event_id: string;
+  market_id: string;
+  outcome_id: string;
+  stake: string;
+  currency: string;
+}
+
+export interface PlaceBetResponse {
+  bet: Bet;
+}
+
+export interface SettleBetRequest {
+  bet_id: string;
+  outcome: "won" | "lost" | "cancelled";
+}
+
+export interface SettleBetResponse {
+  bet: Bet;
+}
+
 class GoApiClient {
   private baseUrl: string;
   private cachedToken: string | null;
@@ -217,6 +304,44 @@ class GoApiClient {
     return this.request("/api/admin/withdrawals/review", {
       method: "POST",
       body: JSON.stringify({ ...body, reviewedBy: "admin" }),
+    });
+  }
+
+  async listSports(): Promise<ApiResponse<{ sports: Sport[] }>> {
+    return this.request("/api/sports", { method: "GET" });
+  }
+
+  async listEvents(): Promise<ApiResponse<EventsResponse>> {
+    return this.request("/api/events", { method: "GET" });
+  }
+
+  async listMarkets(eventId: string): Promise<ApiResponse<MarketsResponse>> {
+    return this.request(`/api/events/${encodeURIComponent(eventId)}/markets`, { method: "GET" });
+  }
+
+  async listOutcomes(marketId: string): Promise<ApiResponse<{ outcomes: Outcome[] }>> {
+    return this.request(`/api/markets/${encodeURIComponent(marketId)}/outcomes`, { method: "GET" });
+  }
+
+  async placeBet(body: PlaceBetRequest): Promise<ApiResponse<PlaceBetResponse>> {
+    return this.request("/api/bets", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async listBets(): Promise<ApiResponse<BetsResponse>> {
+    return this.request("/api/bets", { method: "GET" });
+  }
+
+  async getBet(betId: string): Promise<ApiResponse<{ bet: Bet }>> {
+    return this.request(`/api/bets/${encodeURIComponent(betId)}`, { method: "GET" });
+  }
+
+  async settleBet(body: SettleBetRequest): Promise<ApiResponse<SettleBetResponse>> {
+    return this.request("/api/admin/bets/settle", {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   }
 }
