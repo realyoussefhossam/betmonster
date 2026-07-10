@@ -787,7 +787,7 @@ func newSportsbookServerForGateway(t *testing.T) (*grpc.Server, *bufconn.Listene
 	wallet := &gatewayMockWallet{}
 	oddsfeed := &gatewayMockOddsFeed{eventID: "event-1", marketID: "market-1", outcomeID: "outcome-1", odds: "2.10"}
 	svc := sportsbook.NewService(store, wallet, oddsfeed)
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(sportsbook.AuthInterceptor))
 	pb.RegisterSportsbookServiceServer(grpcServer, sportsbook.NewGRPCServer(svc))
 
 	listener := bufconn.Listen(1024 * 1024)

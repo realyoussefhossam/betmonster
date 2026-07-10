@@ -3,10 +3,11 @@ package gateway
 import (
 	"context"
 
+	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/shared/grpcmeta"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"google.golang.org/grpc/metadata"
 )
 
 type SportsbookClient struct {
@@ -22,6 +23,7 @@ func NewSportsbookClient(addr string) (*SportsbookClient, error) {
 }
 
 func (c *SportsbookClient) PlaceBet(ctx context.Context, userID, eventID, marketID, outcomeID, stake, currency, referenceID string) (*pb.PlaceBetResponse, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, grpcmeta.UserIDHeader, gatewayCallerID)
 	return c.conn.PlaceBet(ctx, &pb.PlaceBetRequest{
 		UserId:      userID,
 		EventId:     eventID,
@@ -34,10 +36,12 @@ func (c *SportsbookClient) PlaceBet(ctx context.Context, userID, eventID, market
 }
 
 func (c *SportsbookClient) GetBet(ctx context.Context, id string) (*pb.GetBetResponse, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, grpcmeta.UserIDHeader, gatewayCallerID)
 	return c.conn.GetBet(ctx, &pb.GetBetRequest{Id: id})
 }
 
 func (c *SportsbookClient) ListBets(ctx context.Context, userID, status string, page, pageSize int) (*pb.ListBetsResponse, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, grpcmeta.UserIDHeader, gatewayCallerID)
 	return c.conn.ListBets(ctx, &pb.ListBetsRequest{
 		UserId:   userID,
 		Status:   status,
@@ -47,5 +51,9 @@ func (c *SportsbookClient) ListBets(ctx context.Context, userID, status string, 
 }
 
 func (c *SportsbookClient) SettleBet(ctx context.Context, betID, outcome string) (*pb.SettleBetResponse, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx,
+		grpcmeta.UserIDHeader, gatewayCallerID,
+		grpcmeta.IsAdminHeader, "true",
+	)
 	return c.conn.SettleBet(ctx, &pb.SettleBetRequest{BetId: betID, Outcome: outcome})
 }
