@@ -12,6 +12,8 @@ import (
 
 	"github.com/realyoussefhossam/betmonster/internal/auth"
 	"github.com/realyoussefhossam/betmonster/internal/shared/server"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -596,7 +598,7 @@ func (s *Server) handlePlaceBet(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := s.sportsbook.PlaceBet(r.Context(), user.ID, body.EventID, body.MarketID, body.OutcomeID, body.Stake, body.Currency, body.ReferenceID)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err)
+		s.writeError(w, grpcStatusToHTTP(err), err)
 		return
 	}
 	s.writeJSON(w, http.StatusCreated, resp)
@@ -611,7 +613,7 @@ func (s *Server) handleListBets(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := pagination(r)
 	resp, err := s.sportsbook.ListBets(r.Context(), user.ID, status, page, pageSize)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err)
+		s.writeError(w, grpcStatusToHTTP(err), err)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, resp)
@@ -625,7 +627,7 @@ func (s *Server) handleGetBet(w http.ResponseWriter, r *http.Request) {
 	betID := r.PathValue("bet_id")
 	resp, err := s.sportsbook.GetBet(r.Context(), betID)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err)
+		s.writeError(w, grpcStatusToHTTP(err), err)
 		return
 	}
 	if resp == nil || resp.Bet == nil || resp.Bet.UserId != user.ID {
@@ -646,10 +648,36 @@ func (s *Server) handleSettleBet(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := s.sportsbook.SettleBet(r.Context(), body.BetID, body.Outcome)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err)
+		s.writeError(w, grpcStatusToHTTP(err), err)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func grpcStatusToHTTP(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		return http.StatusInternalServerError
+	}
+	switch st.Code() {
+	case codes.InvalidArgument:
+		return http.StatusBadRequest
+	case codes.NotFound:
+		return http.StatusNotFound
+	case codes.AlreadyExists:
+		return http.StatusConflict
+	case codes.Unauthenticated:
+		return http.StatusUnauthorized
+	case codes.PermissionDenied:
+		return http.StatusForbidden
+	case codes.FailedPrecondition:
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func (s *Server) writeError(w http.ResponseWriter, status int, err error) {

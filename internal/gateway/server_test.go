@@ -860,3 +860,39 @@ func TestGatewayListBets(t *testing.T) {
 	assert.Len(t, resp.Bets, 1)
 	assert.Equal(t, "user-1", resp.Bets[0].UserId)
 }
+
+func TestGatewayPlaceBetReturnsBadRequest(t *testing.T) {
+	_, listener := newSportsbookServerForGateway(t)
+	srv, cleanup := newSportsbookGatewayServer(t, listener)
+	defer cleanup()
+	jwksClient, token := newTestJWKSClient(t)
+	srv.jwksClient = jwksClient
+
+	body := `{"eventId":"event-1","marketId":"market-1","outcomeId":"outcome-1","stake":"","currency":"USDT","referenceId":"ref-gw-bad"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/bets", strings.NewReader(body))
+	req.Header.Set("Authorization", token("user-1"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "missing")
+}
+
+func TestGatewayGetBetReturnsNotFound(t *testing.T) {
+	_, listener := newSportsbookServerForGateway(t)
+	srv, cleanup := newSportsbookGatewayServer(t, listener)
+	defer cleanup()
+	jwksClient, token := newTestJWKSClient(t)
+	srv.jwksClient = jwksClient
+
+	req := httptest.NewRequest(http.MethodGet, "/api/bets/no-such-bet", nil)
+	req.Header.Set("Authorization", token("user-1"))
+	w := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "not found")
+}
