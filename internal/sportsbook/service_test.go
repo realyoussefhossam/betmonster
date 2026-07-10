@@ -2,7 +2,10 @@ package sportsbook
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
 	"github.com/stretchr/testify/assert"
@@ -172,9 +175,154 @@ func TestListBetsFiltersByUser(t *testing.T) {
 	assert.Equal(t, "user-1", bets[0].UserID)
 }
 
+func TestPlaceBetRecordsBetBeforeDebit(t *testing.T) {
+	store := NewInMemoryStore()
+	oddsfeed := newMockOddsFeedClient()
+	oddsfeed.seedEvent("event-1", "market-1", "outcome-1", "2.50")
+	recording := &recordingDebitWallet{store: store, t: t}
+	svc := NewService(store, recording, oddsfeed)
+
+	_, err := svc.PlaceBet(context.Background(), "user-1", "event-1", "market-1", "outcome-1", "10.00", "USDT", "ref-debit-record")
+	require.Error(t, err)
+
+	assert.True(t, recording.sawDebitPending, "bet should be in debit_pending when DebitWallet is called")
+
+	bet, err := store.GetBetByReference(context.Background(), "user-1", "ref-debit-record")
+	require.NoError(t, err)
+	assert.Equal(t, StatusCancelled, bet.Status)
+}
+
+type recordingDebitWallet struct {
+	store           *InMemoryStore
+	t               *testing.T
+	sawDebitPending bool
+}
+
+func (r *recordingDebitWallet) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	bet, err := r.store.GetBetByReference(ctx, userID, referenceID)
+	require.NoError(r.t, err)
+	if bet.Status == StatusDebitPending {
+		r.sawDebitPending = true
+	}
+	return "", errors.New("insufficient funds")
+}
+
+func (r *recordingDebitWallet) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	return "", nil
+}
+
+var _ WalletClient = (*recordingDebitWallet)(nil)
+
+func TestPlaceBetReversesWhenDebitFails(t *testing.T) {
+	svc, wallet, oddsfeed, store := newTestService(t)
+	oddsfeed.seedEvent("event-1", "market-1", "outcome-1", "2.50")
+	wallet.debitErr = errors.New("insufficient funds")
+
+	_, err := svc.PlaceBet(context.Background(), "user-1", "event-1", "market-1", "outcome-1", "10.00", "USDT", "ref-debit-fail")
+	require.Error(t, err)
+
+	bet, err := store.GetBetByReference(context.Background(), "user-1", "ref-debit-fail")
+	require.NoError(t, err)
+	assert.Equal(t, StatusCancelled, bet.Status)
+}
+
+func TestSettleWinMarksWonBeforeCredit(t *testing.T) {
+	svc, wallet, oddsfeed, store := newTestService(t)
+	oddsfeed.seedEvent("event-1", "market-1", "outcome-1", "2.50")
+
+	bet, err := svc.PlaceBet(context.Background(), "user-1", "event-1", "market-1", "outcome-1", "10.00", "USDT", "ref-settle-order")
+	require.NoError(t, err)
+
+	checkStoreWallet := &checkingCreditWallet{mock: wallet, store: store, betID: bet.ID, t: t}
+	svcWithCheck := NewService(store, checkStoreWallet, oddsfeed)
+
+	_, err = svcWithCheck.SettleBet(context.Background(), bet.ID, StatusWon)
+	require.NoError(t, err)
+}
+
+type checkingCreditWallet struct {
+	mock  *mockWalletClient
+	store *InMemoryStore
+	betID string
+	t     *testing.T
+}
+
+func (c *checkingCreditWallet) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	bet, err := c.store.GetBet(ctx, c.betID)
+	require.NoError(c.t, err)
+	assert.Equal(c.t, StatusWon, bet.Status)
+	return c.mock.CreditWallet(ctx, userID, currency, amount, referenceID, metadata)
+}
+
+func (c *checkingCreditWallet) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	return c.mock.DebitWallet(ctx, userID, currency, amount, referenceID, metadata)
+}
+
+var _ WalletClient = (*checkingCreditWallet)(nil)
+
+func TestSettleWinIsIdempotent(t *testing.T) {
+	svc, wallet, oddsfeed, _ := newTestService(t)
+	oddsfeed.seedEvent("event-1", "market-1", "outcome-1", "2.50")
+
+	bet, err := svc.PlaceBet(context.Background(), "user-1", "event-1", "market-1", "outcome-1", "10.00", "USDT", "ref-idempotent")
+	require.NoError(t, err)
+
+	_, err = svc.SettleBet(context.Background(), bet.ID, StatusWon)
+	require.NoError(t, err)
+
+	_, err = svc.SettleBet(context.Background(), bet.ID, StatusWon)
+	assert.Error(t, err)
+	assert.Len(t, wallet.credits, 1) // no second credit
+}
+
+func TestSchedulerPaginatesPendingBets(t *testing.T) {
+	store := NewInMemoryStore()
+	now := time.Now()
+	for i := 0; i < 5; i++ {
+		_, err := store.CreateBet(context.Background(), Bet{
+			ID:              fmt.Sprintf("bet-%d", i),
+			UserID:          "user-1",
+			EventID:         "event-1",
+			MarketID:        "market-1",
+			OutcomeID:       "outcome-1",
+			Odds:            "2.00",
+			Stake:           "1.00",
+			PotentialPayout: "2.00",
+			Currency:        "USDT",
+			Status:          StatusPending,
+			ReferenceID:     fmt.Sprintf("ref-page-%d", i),
+			CreatedAt:       now.Add(time.Duration(i) * time.Second),
+		})
+		require.NoError(t, err)
+	}
+
+	page1, err := store.ListPendingBets(context.Background(), 1, 2)
+	require.NoError(t, err)
+	assert.Len(t, page1, 2)
+
+	page2, err := store.ListPendingBets(context.Background(), 2, 2)
+	require.NoError(t, err)
+	assert.Len(t, page2, 2)
+
+	page3, err := store.ListPendingBets(context.Background(), 3, 2)
+	require.NoError(t, err)
+	assert.Len(t, page3, 1)
+
+	// Verify ordering and no overlap.
+	assert.Equal(t, "bet-0", page1[0].ID)
+	assert.Equal(t, "bet-1", page1[1].ID)
+	assert.Equal(t, "bet-2", page2[0].ID)
+	assert.Equal(t, "bet-3", page2[1].ID)
+	assert.Equal(t, "bet-4", page3[0].ID)
+}
+
 type mockWalletClient struct {
-	debits  []walletCall
-	credits []walletCall
+	debits     []walletCall
+	credits    []walletCall
+	debitErr   error
+	debitTxID  string
+	creditTxID string
+	creditErr  error
 }
 
 type walletCall struct {
@@ -185,14 +333,26 @@ type walletCall struct {
 	metadata    map[string]any
 }
 
-func (m *mockWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
+func (m *mockWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
 	m.debits = append(m.debits, walletCall{userID: userID, currency: currency, amount: amount, referenceID: referenceID, metadata: metadata})
-	return nil
+	if m.debitErr != nil {
+		return "", m.debitErr
+	}
+	if m.debitTxID == "" {
+		return "debit-tx-" + referenceID, nil
+	}
+	return m.debitTxID, nil
 }
 
-func (m *mockWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
+func (m *mockWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
 	m.credits = append(m.credits, walletCall{userID: userID, currency: currency, amount: amount, referenceID: referenceID, metadata: metadata})
-	return nil
+	if m.creditErr != nil {
+		return "", m.creditErr
+	}
+	if m.creditTxID == "" {
+		return "credit-tx-" + referenceID, nil
+	}
+	return m.creditTxID, nil
 }
 
 type mockOddsFeedClient struct {

@@ -28,7 +28,7 @@ func NewGRPCWalletClient(addr string) (*GRPCWalletClient, error) {
 	return &GRPCWalletClient{conn: pb.NewWalletServiceClient(conn)}, nil
 }
 
-func (c *GRPCWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, meta map[string]any) error {
+func (c *GRPCWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, meta map[string]any) (string, error) {
 	metadataJSON := ""
 	if meta != nil {
 		b, _ := json.Marshal(meta)
@@ -39,17 +39,23 @@ func (c *GRPCWalletClient) DebitWallet(ctx context.Context, userID, currency, am
 		grpcmeta.IsAdminHeader, "true",
 	)
 	ctx = metadata.NewOutgoingContext(ctx, md)
-	_, err := c.conn.DebitWallet(ctx, &pb.DebitWalletRequest{
+	resp, err := c.conn.DebitWallet(ctx, &pb.DebitWalletRequest{
 		UserId:      userID,
 		Currency:    currency,
 		Amount:      amount,
 		ReferenceId: referenceID,
 		Metadata:    metadataJSON,
 	})
-	return err
+	if err != nil {
+		return "", err
+	}
+	if resp == nil {
+		return "", nil
+	}
+	return resp.TransactionId, nil
 }
 
-func (c *GRPCWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, meta map[string]any) error {
+func (c *GRPCWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, meta map[string]any) (string, error) {
 	metadataJSON := ""
 	if meta != nil {
 		b, _ := json.Marshal(meta)
@@ -60,14 +66,20 @@ func (c *GRPCWalletClient) CreditWallet(ctx context.Context, userID, currency, a
 		grpcmeta.IsAdminHeader, "true",
 	)
 	ctx = metadata.NewOutgoingContext(ctx, md)
-	_, err := c.conn.CreditWallet(ctx, &pb.CreditWalletRequest{
+	resp, err := c.conn.CreditWallet(ctx, &pb.CreditWalletRequest{
 		UserId:      userID,
 		Currency:    currency,
 		Amount:      amount,
 		ReferenceId: referenceID,
 		Metadata:    metadataJSON,
 	})
-	return err
+	if err != nil {
+		return "", err
+	}
+	if resp == nil {
+		return "", nil
+	}
+	return resp.TransactionId, nil
 }
 
 type GRPCOddsFeedClient struct {

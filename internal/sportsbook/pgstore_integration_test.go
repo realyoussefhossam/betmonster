@@ -189,7 +189,7 @@ func TestPGStoreListPendingBets(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	pending, err := store.ListPendingBets(ctx)
+	pending, err := store.ListPendingBets(ctx, 1, 20)
 	require.NoError(t, err)
 	assert.Len(t, pending, 1)
 	assert.Equal(t, StatusPending, pending[0].Status)

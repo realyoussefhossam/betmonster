@@ -101,7 +101,7 @@ func betToProto(b Bet) *pb.Bet {
 	if b.SettledAt != nil {
 		settledAt = b.SettledAt.Format(time.RFC3339)
 	}
-	return &pb.Bet{
+	p := &pb.Bet{
 		Id:              b.ID,
 		UserId:          b.UserID,
 		EventId:         b.EventID,
@@ -116,4 +116,11 @@ func betToProto(b Bet) *pb.Bet {
 		CreatedAt:       b.CreatedAt.Format(time.RFC3339),
 		SettledAt:       settledAt,
 	}
+	if b.DebitTransactionID != "" {
+		p.DebitTransactionId = b.DebitTransactionID
+	}
+	if b.CreditTransactionID != "" {
+		p.CreditTransactionId = b.CreditTransactionID
+	}
+	return p
 }

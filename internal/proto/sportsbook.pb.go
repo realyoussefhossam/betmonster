@@ -74,22 +74,24 @@ func (x *OddsSnapshot) GetOdds() string {
 }
 
 type Bet struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	EventId         string                 `protobuf:"bytes,3,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	MarketId        string                 `protobuf:"bytes,4,opt,name=market_id,json=marketId,proto3" json:"market_id,omitempty"`
-	OutcomeId       string                 `protobuf:"bytes,5,opt,name=outcome_id,json=outcomeId,proto3" json:"outcome_id,omitempty"`
-	Odds            string                 `protobuf:"bytes,6,opt,name=odds,proto3" json:"odds,omitempty"`
-	Stake           string                 `protobuf:"bytes,7,opt,name=stake,proto3" json:"stake,omitempty"` // decimal string
-	PotentialPayout string                 `protobuf:"bytes,8,opt,name=potential_payout,json=potentialPayout,proto3" json:"potential_payout,omitempty"`
-	Currency        string                 `protobuf:"bytes,9,opt,name=currency,proto3" json:"currency,omitempty"`
-	Status          string                 `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"` // pending, won, lost, cancelled, settled
-	ReferenceId     string                 `protobuf:"bytes,11,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
-	CreatedAt       string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	SettledAt       string                 `protobuf:"bytes,13,opt,name=settled_at,json=settledAt,proto3" json:"settled_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId              string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	EventId             string                 `protobuf:"bytes,3,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	MarketId            string                 `protobuf:"bytes,4,opt,name=market_id,json=marketId,proto3" json:"market_id,omitempty"`
+	OutcomeId           string                 `protobuf:"bytes,5,opt,name=outcome_id,json=outcomeId,proto3" json:"outcome_id,omitempty"`
+	Odds                string                 `protobuf:"bytes,6,opt,name=odds,proto3" json:"odds,omitempty"`
+	Stake               string                 `protobuf:"bytes,7,opt,name=stake,proto3" json:"stake,omitempty"` // decimal string
+	PotentialPayout     string                 `protobuf:"bytes,8,opt,name=potential_payout,json=potentialPayout,proto3" json:"potential_payout,omitempty"`
+	Currency            string                 `protobuf:"bytes,9,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status              string                 `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"` // debit_pending, pending, won, lost, cancelled, settled
+	ReferenceId         string                 `protobuf:"bytes,11,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
+	CreatedAt           string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	SettledAt           string                 `protobuf:"bytes,13,opt,name=settled_at,json=settledAt,proto3" json:"settled_at,omitempty"`
+	DebitTransactionId  string                 `protobuf:"bytes,14,opt,name=debit_transaction_id,json=debitTransactionId,proto3" json:"debit_transaction_id,omitempty"`
+	CreditTransactionId string                 `protobuf:"bytes,15,opt,name=credit_transaction_id,json=creditTransactionId,proto3" json:"credit_transaction_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Bet) Reset() {
@@ -209,6 +211,20 @@ func (x *Bet) GetCreatedAt() string {
 func (x *Bet) GetSettledAt() string {
 	if x != nil {
 		return x.SettledAt
+	}
+	return ""
+}
+
+func (x *Bet) GetDebitTransactionId() string {
+	if x != nil {
+		return x.DebitTransactionId
+	}
+	return ""
+}
+
+func (x *Bet) GetCreditTransactionId() string {
+	if x != nil {
+		return x.CreditTransactionId
 	}
 	return ""
 }
@@ -654,7 +670,7 @@ const file_internal_proto_sportsbook_proto_rawDesc = "" +
 	"\fOddsSnapshot\x12\x1d\n" +
 	"\n" +
 	"outcome_id\x18\x01 \x01(\tR\toutcomeId\x12\x12\n" +
-	"\x04odds\x18\x02 \x01(\tR\x04odds\"\xef\x02\n" +
+	"\x04odds\x18\x02 \x01(\tR\x04odds\"\xd5\x03\n" +
 	"\x03Bet\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
@@ -672,7 +688,9 @@ const file_internal_proto_sportsbook_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"settled_at\x18\r \x01(\tR\tsettledAt\"\xd6\x01\n" +
+	"settled_at\x18\r \x01(\tR\tsettledAt\x120\n" +
+	"\x14debit_transaction_id\x18\x0e \x01(\tR\x12debitTransactionId\x122\n" +
+	"\x15credit_transaction_id\x18\x0f \x01(\tR\x13creditTransactionId\"\xd6\x01\n" +
 	"\x0fPlaceBetRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x1b\n" +

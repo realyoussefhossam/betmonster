@@ -741,12 +741,12 @@ func TestGatewayWebhookInvalidSignature(t *testing.T) {
 
 type gatewayMockWallet struct{}
 
-func (m *gatewayMockWallet) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
-	return nil
+func (m *gatewayMockWallet) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	return "", nil
 }
 
-func (m *gatewayMockWallet) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
-	return nil
+func (m *gatewayMockWallet) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	return "", nil
 }
 
 type gatewayMockOddsFeed struct {

@@ -11,8 +11,8 @@ import (
 )
 
 type WalletClient interface {
-	DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error
-	CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error
+	DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error)
+	CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error)
 }
 
 type OddsFeedClient interface {
@@ -118,11 +118,6 @@ func (s *Service) PlaceBet(ctx context.Context, userID, eventID, marketID, outco
 	}
 	metadataJSON, _ := json.Marshal(metadata)
 
-	// Debit stake before recording the accepted bet.
-	if err := s.wallet.DebitWallet(ctx, userID, currency, stake, referenceID, map[string]any{"type": "bet_stake", "metadata": string(metadataJSON)}); err != nil {
-		return Bet{}, fmt.Errorf("debit stake: %w", err)
-	}
-
 	bet := Bet{
 		UserID:          userID,
 		EventID:         eventID,
@@ -132,7 +127,7 @@ func (s *Service) PlaceBet(ctx context.Context, userID, eventID, marketID, outco
 		Stake:           stake,
 		PotentialPayout: potentialPayout,
 		Currency:        currency,
-		Status:          StatusPending,
+		Status:          StatusDebitPending,
 		ReferenceID:     referenceID,
 		CreatedAt:       time.Now(),
 	}
@@ -140,7 +135,7 @@ func (s *Service) PlaceBet(ctx context.Context, userID, eventID, marketID, outco
 	id, err := s.store.CreateBet(ctx, bet)
 	if err != nil {
 		if errors.Is(err, ErrBetNotFound) {
-			// Concurrent creation with same reference; return existing bet.
+			// Existing bet with same reference; return it.
 			existing, err := s.store.GetBetByReference(ctx, userID, referenceID)
 			if err != nil {
 				return Bet{}, fmt.Errorf("create bet conflict: %w", err)
@@ -150,6 +145,21 @@ func (s *Service) PlaceBet(ctx context.Context, userID, eventID, marketID, outco
 		return Bet{}, fmt.Errorf("create bet: %w", err)
 	}
 	bet.ID = id
+
+	debitTxID, err := s.wallet.DebitWallet(ctx, userID, currency, stake, referenceID, map[string]any{"type": "bet_stake", "metadata": string(metadataJSON)})
+	if err != nil {
+		// Mark as cancelled so the record reflects the failed stake hold.
+		_ = s.store.UpdateBetStatus(ctx, bet.ID, StatusCancelled, time.Now())
+		return Bet{}, fmt.Errorf("debit stake: %w", err)
+	}
+
+	bet.DebitTransactionID = debitTxID
+	if err := s.store.UpdateBetStatusAndDebitTx(ctx, bet.ID, StatusPending, debitTxID, time.Time{}); err != nil {
+		// The debit succeeded but we couldn't record it. Leave in debit_pending for operator review/retry.
+		return Bet{}, fmt.Errorf("finalize bet after debit: %w", err)
+	}
+
+	bet.Status = StatusPending
 	return bet, nil
 }
 
@@ -165,6 +175,10 @@ func (s *Service) ListBets(ctx context.Context, userID, status string, page, pag
 		return nil, errors.New("user id required")
 	}
 	return s.store.ListBets(ctx, userID, status, page, pageSize)
+}
+
+func (s *Service) ListPendingBets(ctx context.Context, page, pageSize int) ([]Bet, error) {
+	return s.store.ListPendingBets(ctx, page, pageSize)
 }
 
 func (s *Service) SettleBet(ctx context.Context, betID, outcome string) (Bet, error) {
@@ -186,32 +200,42 @@ func (s *Service) SettleBet(ctx context.Context, betID, outcome string) (Bet, er
 	now := time.Now()
 	switch outcome {
 	case StatusWon:
+		// Mark settled first so a retry cannot double-credit.
+		if err := s.store.UpdateBetStatusAndOutcome(ctx, bet.ID, StatusWon, now); err != nil {
+			return Bet{}, fmt.Errorf("mark bet won: %w", err)
+		}
 		metadata := map[string]any{
 			"bet_id":  bet.ID,
 			"outcome": "won",
 			"payout":  bet.PotentialPayout,
 		}
-		if err := s.wallet.CreditWallet(ctx, bet.UserID, bet.Currency, bet.PotentialPayout, "settle-"+bet.ReferenceID, metadata); err != nil {
+		creditTxID, err := s.wallet.CreditWallet(ctx, bet.UserID, bet.Currency, bet.PotentialPayout, "settle-"+bet.ReferenceID, metadata)
+		if err != nil {
+			// Bet is marked won but credit failed; leave credit_transaction_id empty for retry/review.
 			return Bet{}, fmt.Errorf("credit winnings: %w", err)
 		}
-		if err := s.store.UpdateBetStatus(ctx, bet.ID, StatusWon, now); err != nil {
-			return Bet{}, fmt.Errorf("update bet status: %w", err)
+		if err := s.store.SetCreditTransactionID(ctx, bet.ID, creditTxID); err != nil {
+			return Bet{}, fmt.Errorf("record credit tx: %w", err)
 		}
 	case StatusLost:
-		if err := s.store.UpdateBetStatus(ctx, bet.ID, StatusLost, now); err != nil {
-			return Bet{}, fmt.Errorf("update bet status: %w", err)
+		if err := s.store.UpdateBetStatusAndOutcome(ctx, bet.ID, StatusLost, now); err != nil {
+			return Bet{}, fmt.Errorf("mark bet lost: %w", err)
 		}
 	case StatusCancelled:
+		if err := s.store.UpdateBetStatusAndOutcome(ctx, bet.ID, StatusCancelled, now); err != nil {
+			return Bet{}, fmt.Errorf("mark bet cancelled: %w", err)
+		}
 		metadata := map[string]any{
 			"bet_id":  bet.ID,
 			"outcome": "cancelled",
 			"refund":  bet.Stake,
 		}
-		if err := s.wallet.CreditWallet(ctx, bet.UserID, bet.Currency, bet.Stake, "cancel-"+bet.ReferenceID, metadata); err != nil {
+		creditTxID, err := s.wallet.CreditWallet(ctx, bet.UserID, bet.Currency, bet.Stake, "cancel-"+bet.ReferenceID, metadata)
+		if err != nil {
 			return Bet{}, fmt.Errorf("credit refund: %w", err)
 		}
-		if err := s.store.UpdateBetStatus(ctx, bet.ID, StatusCancelled, now); err != nil {
-			return Bet{}, fmt.Errorf("update bet status: %w", err)
+		if err := s.store.SetCreditTransactionID(ctx, bet.ID, creditTxID); err != nil {
+			return Bet{}, fmt.Errorf("record refund tx: %w", err)
 		}
 	}
 
@@ -228,23 +252,34 @@ func (s *Service) mustGetBet(ctx context.Context, id string) *Bet {
 }
 
 func (s *Service) AutoSettleFromEvents(ctx context.Context) error {
-	pending, err := s.store.ListPendingBets(ctx)
-	if err != nil {
-		return fmt.Errorf("list pending bets: %w", err)
-	}
-
-	for _, bet := range pending {
-		outcome, err := s.resolveOutcomeStatus(ctx, bet.EventID, bet.MarketID, bet.OutcomeID)
+	const pageSize = 100
+	page := 1
+	for {
+		pending, err := s.store.ListPendingBets(ctx, page, pageSize)
 		if err != nil {
-			// Log and continue; do not block other settlements.
-			continue
+			return fmt.Errorf("list pending bets: %w", err)
 		}
-		if outcome == "" {
-			continue
+		if len(pending) == 0 {
+			return nil
 		}
-		_, _ = s.SettleBet(ctx, bet.ID, outcome)
+
+		for _, bet := range pending {
+			outcome, err := s.resolveOutcomeStatus(ctx, bet.EventID, bet.MarketID, bet.OutcomeID)
+			if err != nil {
+				// Log and continue; do not block other settlements.
+				continue
+			}
+			if outcome == "" {
+				continue
+			}
+			_, _ = s.SettleBet(ctx, bet.ID, outcome)
+		}
+
+		if len(pending) < pageSize {
+			return nil
+		}
+		page++
 	}
-	return nil
 }
 
 func (s *Service) resolveOutcomeStatus(ctx context.Context, eventID, marketID, outcomeID string) (string, error) {
@@ -294,12 +329,12 @@ func (s *Service) resolveOutcomeStatus(ctx context.Context, eventID, marketID, o
 
 type noopWalletClient struct{}
 
-func (n *noopWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
-	return nil
+func (n *noopWalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	return "", nil
 }
 
-func (n *noopWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
-	return nil
+func (n *noopWalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (string, error) {
+	return "", nil
 }
 
 type noopOddsFeedClient struct{}

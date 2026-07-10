@@ -29,14 +29,14 @@ func (s *PGStore) CreateBet(ctx context.Context, b Bet) (string, error) {
 	}
 
 	const q = `
-		INSERT INTO bets (id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO bets (id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, debit_transaction_id, credit_transaction_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id
 	`
 	var id string
 	err := s.db.QueryRowContext(ctx, q,
 		b.ID, b.UserID, b.EventID, b.MarketID, b.OutcomeID, b.Odds, b.Stake, b.PotentialPayout,
-		b.Currency, b.Status, b.ReferenceID, b.CreatedAt,
+		b.Currency, b.Status, b.ReferenceID, b.DebitTransactionID, b.CreditTransactionID, b.CreatedAt,
 	).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -60,7 +60,7 @@ func isUniqueViolation(err error) bool {
 
 func (s *PGStore) GetBet(ctx context.Context, id string) (*Bet, error) {
 	const q = `
-		SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, created_at, settled_at
+		SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, debit_transaction_id, credit_transaction_id, created_at, settled_at
 		FROM bets
 		WHERE id = $1
 	`
@@ -68,7 +68,7 @@ func (s *PGStore) GetBet(ctx context.Context, id string) (*Bet, error) {
 	var settledAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, q, id).Scan(
 		&b.ID, &b.UserID, &b.EventID, &b.MarketID, &b.OutcomeID, &b.Odds, &b.Stake, &b.PotentialPayout,
-		&b.Currency, &b.Status, &b.ReferenceID, &b.CreatedAt, &settledAt,
+		&b.Currency, &b.Status, &b.ReferenceID, &b.DebitTransactionID, &b.CreditTransactionID, &b.CreatedAt, &settledAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrBetNotFound
@@ -96,7 +96,7 @@ func (s *PGStore) ListBets(ctx context.Context, userID, status string, page, pag
 	var err error
 	if status != "" {
 		q = `
-			SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, created_at, settled_at
+			SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, debit_transaction_id, credit_transaction_id, created_at, settled_at
 			FROM bets
 			WHERE user_id = $1 AND status = $2
 			ORDER BY created_at DESC
@@ -105,7 +105,7 @@ func (s *PGStore) ListBets(ctx context.Context, userID, status string, page, pag
 		rows, err = s.db.QueryContext(ctx, q, userID, status, pageSize, offset)
 	} else {
 		q = `
-			SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, created_at, settled_at
+			SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, debit_transaction_id, credit_transaction_id, created_at, settled_at
 			FROM bets
 			WHERE user_id = $1
 			ORDER BY created_at DESC
@@ -124,7 +124,7 @@ func (s *PGStore) ListBets(ctx context.Context, userID, status string, page, pag
 		var settledAt sql.NullTime
 		if err := rows.Scan(
 			&b.ID, &b.UserID, &b.EventID, &b.MarketID, &b.OutcomeID, &b.Odds, &b.Stake, &b.PotentialPayout,
-			&b.Currency, &b.Status, &b.ReferenceID, &b.CreatedAt, &settledAt,
+			&b.Currency, &b.Status, &b.ReferenceID, &b.DebitTransactionID, &b.CreditTransactionID, &b.CreatedAt, &settledAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan bet: %w", err)
 		}
@@ -157,14 +157,77 @@ func (s *PGStore) UpdateBetStatus(ctx context.Context, id, status string, settle
 	return nil
 }
 
-func (s *PGStore) ListPendingBets(ctx context.Context) ([]Bet, error) {
+func (s *PGStore) UpdateBetStatusAndDebitTx(ctx context.Context, id, status, debitTxID string, settledAt time.Time) error {
 	const q = `
-		SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, created_at, settled_at
+		UPDATE bets
+		SET status = $1, debit_transaction_id = $2, settled_at = $3
+		WHERE id = $4
+		RETURNING id
+	`
+	var returnedID string
+	err := s.db.QueryRowContext(ctx, q, status, debitTxID, settledAt, id).Scan(&returnedID)
+	if err == sql.ErrNoRows {
+		return ErrBetNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("update bet status and debit tx: %w", err)
+	}
+	return nil
+}
+
+func (s *PGStore) UpdateBetStatusAndOutcome(ctx context.Context, id, status string, settledAt time.Time) error {
+	const q = `
+		UPDATE bets
+		SET status = $1, settled_at = $2
+		WHERE id = $3
+		RETURNING id
+	`
+	var returnedID string
+	err := s.db.QueryRowContext(ctx, q, status, settledAt, id).Scan(&returnedID)
+	if err == sql.ErrNoRows {
+		return ErrBetNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("update bet status and outcome: %w", err)
+	}
+	return nil
+}
+
+func (s *PGStore) SetCreditTransactionID(ctx context.Context, id, creditTxID string) error {
+	const q = `
+		UPDATE bets
+		SET credit_transaction_id = $1
+		WHERE id = $2
+		RETURNING id
+	`
+	var returnedID string
+	err := s.db.QueryRowContext(ctx, q, creditTxID, id).Scan(&returnedID)
+	if err == sql.ErrNoRows {
+		return ErrBetNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("set credit transaction id: %w", err)
+	}
+	return nil
+}
+
+func (s *PGStore) ListPendingBets(ctx context.Context, page, pageSize int) ([]Bet, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	const q = `
+		SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, debit_transaction_id, credit_transaction_id, created_at, settled_at
 		FROM bets
 		WHERE status = $1
 		ORDER BY created_at ASC
+		LIMIT $2 OFFSET $3
 	`
-	rows, err := s.db.QueryContext(ctx, q, StatusPending)
+	rows, err := s.db.QueryContext(ctx, q, StatusPending, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list pending bets: %w", err)
 	}
@@ -176,7 +239,7 @@ func (s *PGStore) ListPendingBets(ctx context.Context) ([]Bet, error) {
 		var settledAt sql.NullTime
 		if err := rows.Scan(
 			&b.ID, &b.UserID, &b.EventID, &b.MarketID, &b.OutcomeID, &b.Odds, &b.Stake, &b.PotentialPayout,
-			&b.Currency, &b.Status, &b.ReferenceID, &b.CreatedAt, &settledAt,
+			&b.Currency, &b.Status, &b.ReferenceID, &b.DebitTransactionID, &b.CreditTransactionID, &b.CreatedAt, &settledAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan pending bet: %w", err)
 		}
@@ -193,7 +256,7 @@ func (s *PGStore) ListPendingBets(ctx context.Context) ([]Bet, error) {
 
 func (s *PGStore) GetBetByReference(ctx context.Context, userID, referenceID string) (*Bet, error) {
 	const q = `
-		SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, created_at, settled_at
+		SELECT id, user_id, event_id, market_id, outcome_id, odds, stake, potential_payout, currency, status, reference_id, debit_transaction_id, credit_transaction_id, created_at, settled_at
 		FROM bets
 		WHERE user_id = $1 AND reference_id = $2
 	`
@@ -201,7 +264,7 @@ func (s *PGStore) GetBetByReference(ctx context.Context, userID, referenceID str
 	var settledAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, q, userID, referenceID).Scan(
 		&b.ID, &b.UserID, &b.EventID, &b.MarketID, &b.OutcomeID, &b.Odds, &b.Stake, &b.PotentialPayout,
-		&b.Currency, &b.Status, &b.ReferenceID, &b.CreatedAt, &settledAt,
+		&b.Currency, &b.Status, &b.ReferenceID, &b.DebitTransactionID, &b.CreditTransactionID, &b.CreatedAt, &settledAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrBetNotFound

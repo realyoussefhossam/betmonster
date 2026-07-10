@@ -120,9 +120,62 @@ func (s *InMemoryStore) UpdateBetStatus(ctx context.Context, id, status string, 
 	return nil
 }
 
-func (s *InMemoryStore) ListPendingBets(ctx context.Context) ([]Bet, error) {
+func (s *InMemoryStore) UpdateBetStatusAndDebitTx(ctx context.Context, id, status, debitTxID string, settledAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.bets[id]
+	if !ok {
+		return ErrBetNotFound
+	}
+	b.Status = status
+	b.DebitTransactionID = debitTxID
+	if !settledAt.IsZero() {
+		b.SettledAt = &settledAt
+	}
+	s.bets[id] = b
+	return nil
+}
+
+func (s *InMemoryStore) UpdateBetStatusAndOutcome(ctx context.Context, id, status string, settledAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.bets[id]
+	if !ok {
+		return ErrBetNotFound
+	}
+	b.Status = status
+	if !settledAt.IsZero() {
+		b.SettledAt = &settledAt
+	}
+	s.bets[id] = b
+	return nil
+}
+
+func (s *InMemoryStore) SetCreditTransactionID(ctx context.Context, id, creditTxID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.bets[id]
+	if !ok {
+		return ErrBetNotFound
+	}
+	b.CreditTransactionID = creditTxID
+	s.bets[id] = b
+	return nil
+}
+
+func (s *InMemoryStore) ListPendingBets(ctx context.Context, page, pageSize int) ([]Bet, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
 
 	var out []Bet
 	for _, b := range s.bets {
@@ -130,8 +183,32 @@ func (s *InMemoryStore) ListPendingBets(ctx context.Context) ([]Bet, error) {
 			out = append(out, b)
 		}
 	}
-	sortBetsByCreatedDesc(out)
-	return out, nil
+	sortBetsByCreatedAsc(out)
+
+	start := (page - 1) * pageSize
+	if start > len(out) {
+		start = len(out)
+	}
+	end := start + pageSize
+	if end > len(out) {
+		end = len(out)
+	}
+	return out[start:end], nil
+}
+
+func sortBetsByCreatedAsc(bets []Bet) {
+	for i := 1; i < len(bets); i++ {
+		j := i
+		for j > 0 {
+			if bets[j].CreatedAt.Before(bets[j-1].CreatedAt) ||
+				(bets[j].CreatedAt.Equal(bets[j-1].CreatedAt) && bets[j].ID < bets[j-1].ID) {
+				bets[j], bets[j-1] = bets[j-1], bets[j]
+				j--
+			} else {
+				break
+			}
+		}
+	}
 }
 
 func (s *InMemoryStore) GetBetByReference(ctx context.Context, userID, referenceID string) (*Bet, error) {

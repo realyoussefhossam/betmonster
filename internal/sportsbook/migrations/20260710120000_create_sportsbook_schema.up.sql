@@ -8,7 +8,7 @@ CREATE TABLE bets (
   stake text NOT NULL,
   potential_payout text NOT NULL,
   currency text NOT NULL,
-  status text NOT NULL CHECK (status IN ('pending', 'won', 'lost', 'cancelled', 'settled')),
+  status text NOT NULL CHECK (status IN ('debit_pending', 'pending', 'won', 'lost', 'cancelled', 'settled')),
   reference_id text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   settled_at timestamptz,

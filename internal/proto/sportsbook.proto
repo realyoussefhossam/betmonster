@@ -24,10 +24,12 @@ message Bet {
   string stake = 7;  // decimal string
   string potential_payout = 8;
   string currency = 9;
-  string status = 10;  // pending, won, lost, cancelled, settled
+  string status = 10;  // debit_pending, pending, won, lost, cancelled, settled
   string reference_id = 11;
   string created_at = 12;
   string settled_at = 13;
+  string debit_transaction_id = 14;
+  string credit_transaction_id = 15;
 }
 
 message PlaceBetRequest {

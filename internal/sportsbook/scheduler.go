@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const schedulerPageSize = 100
+
 type Scheduler struct {
 	svc      *Service
 	interval time.Duration
@@ -40,7 +42,42 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 func (s *Scheduler) runOnce(ctx context.Context) {
-	if err := s.svc.AutoSettleFromEvents(ctx); err != nil {
-		s.logger.Error("auto-settlement failed", slog.String("error", err.Error()))
+	page := 1
+	for {
+		bets, err := s.svc.ListPendingBets(ctx, page, schedulerPageSize)
+		if err != nil {
+			s.logger.Error("list pending bets", slog.String("error", err.Error()))
+			return
+		}
+		if len(bets) == 0 {
+			return
+		}
+
+		for _, bet := range bets {
+			outcome, err := s.svc.resolveOutcomeStatus(ctx, bet.EventID, bet.MarketID, bet.OutcomeID)
+			if err != nil {
+				s.logger.Error("resolve outcome status",
+					slog.String("bet_id", bet.ID),
+					slog.String("event_id", bet.EventID),
+					slog.String("error", err.Error()),
+				)
+				continue
+			}
+			if outcome == "" {
+				continue
+			}
+			if _, err := s.svc.SettleBet(ctx, bet.ID, outcome); err != nil {
+				s.logger.Error("auto settle bet",
+					slog.String("bet_id", bet.ID),
+					slog.String("outcome", outcome),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+
+		if len(bets) < schedulerPageSize {
+			return
+		}
+		page++
 	}
 }
