@@ -9,10 +9,10 @@ import (
 )
 
 type Service struct {
-	store              Store
-	xcash              *xcash.Client
-	xcashValidator     *xcash.WebhookValidator
-	supportedPairs     map[string]struct{}
+	store          Store
+	xcash          *xcash.Client
+	xcashValidator *xcash.WebhookValidator
+	supportedPairs map[string]struct{}
 }
 
 func NewService(store Store, xcashClient *xcash.Client, validator *xcash.WebhookValidator, supportedPairs []string) *Service {
