@@ -140,14 +140,17 @@ func (s *PGStore) ListBets(ctx context.Context, userID, status string, page, pag
 }
 
 func (s *PGStore) UpdateBetStatus(ctx context.Context, id, status string, settledAt time.Time) error {
-	const q = `
-		UPDATE bets
-		SET status = $1, settled_at = $2
-		WHERE id = $3
-		RETURNING id
-	`
+	var q string
+	var args []any
+	if settledAt.IsZero() {
+		q = `UPDATE bets SET status = $1 WHERE id = $2 RETURNING id`
+		args = []any{status, id}
+	} else {
+		q = `UPDATE bets SET status = $1, settled_at = $2 WHERE id = $3 RETURNING id`
+		args = []any{status, settledAt, id}
+	}
 	var returnedID string
-	err := s.db.QueryRowContext(ctx, q, status, settledAt, id).Scan(&returnedID)
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(&returnedID)
 	if err == sql.ErrNoRows {
 		return ErrBetNotFound
 	}
@@ -158,14 +161,17 @@ func (s *PGStore) UpdateBetStatus(ctx context.Context, id, status string, settle
 }
 
 func (s *PGStore) UpdateBetStatusAndDebitTx(ctx context.Context, id, status, debitTxID string, settledAt time.Time) error {
-	const q = `
-		UPDATE bets
-		SET status = $1, debit_transaction_id = $2, settled_at = $3
-		WHERE id = $4
-		RETURNING id
-	`
+	var q string
+	var args []any
+	if settledAt.IsZero() {
+		q = `UPDATE bets SET status = $1, debit_transaction_id = $2 WHERE id = $3 RETURNING id`
+		args = []any{status, debitTxID, id}
+	} else {
+		q = `UPDATE bets SET status = $1, debit_transaction_id = $2, settled_at = $3 WHERE id = $4 RETURNING id`
+		args = []any{status, debitTxID, settledAt, id}
+	}
 	var returnedID string
-	err := s.db.QueryRowContext(ctx, q, status, debitTxID, settledAt, id).Scan(&returnedID)
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(&returnedID)
 	if err == sql.ErrNoRows {
 		return ErrBetNotFound
 	}
@@ -176,14 +182,17 @@ func (s *PGStore) UpdateBetStatusAndDebitTx(ctx context.Context, id, status, deb
 }
 
 func (s *PGStore) UpdateBetStatusAndOutcome(ctx context.Context, id, status string, settledAt time.Time) error {
-	const q = `
-		UPDATE bets
-		SET status = $1, settled_at = $2
-		WHERE id = $3
-		RETURNING id
-	`
+	var q string
+	var args []any
+	if settledAt.IsZero() {
+		q = `UPDATE bets SET status = $1 WHERE id = $2 RETURNING id`
+		args = []any{status, id}
+	} else {
+		q = `UPDATE bets SET status = $1, settled_at = $2 WHERE id = $3 RETURNING id`
+		args = []any{status, settledAt, id}
+	}
 	var returnedID string
-	err := s.db.QueryRowContext(ctx, q, status, settledAt, id).Scan(&returnedID)
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(&returnedID)
 	if err == sql.ErrNoRows {
 		return ErrBetNotFound
 	}
@@ -211,6 +220,8 @@ func (s *PGStore) SetCreditTransactionID(ctx context.Context, id, creditTxID str
 	return nil
 }
 
+// ListPendingBets returns pending bets ordered oldest-first (created_at ASC),
+// matching PGStore and the scheduler's expectations.
 func (s *PGStore) ListPendingBets(ctx context.Context, page, pageSize int) ([]Bet, error) {
 	if page <= 0 {
 		page = 1

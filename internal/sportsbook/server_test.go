@@ -171,6 +171,62 @@ func TestGRPCSettleBet(t *testing.T) {
 	assert.Equal(t, "10", wallet.credits[0].amount)
 }
 
+func TestGRPCPlaceBetValidation(t *testing.T) {
+	client, _, _ := newSportsbookServer(t)
+
+	ctx, cancel := context.WithTimeout(serviceCtx(), 5*time.Second)
+	defer cancel()
+	_, err := client.PlaceBet(ctx, &pb.PlaceBetRequest{
+		UserId:      "",
+		EventId:     "event-1",
+		MarketId:    "market-1",
+		OutcomeId:   "outcome-1",
+		Stake:       "5.00",
+		Currency:    "USDT",
+		ReferenceId: "ref-g-validate",
+	})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+func TestGRPCGetBetNotFound(t *testing.T) {
+	client, _, _ := newSportsbookServer(t)
+
+	ctx, cancel := context.WithTimeout(serviceCtx(), 5*time.Second)
+	defer cancel()
+	_, err := client.GetBet(ctx, &pb.GetBetRequest{Id: "no-such-bet"})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
+}
+
+func TestGRPCSettleBetInvalidOutcome(t *testing.T) {
+	client, _, oddsfeed := newSportsbookServer(t)
+	oddsfeed.seedEvent("event-1", "market-1", "outcome-1", "2.00")
+
+	ctx, cancel := context.WithTimeout(serviceCtx(), 5*time.Second)
+	defer cancel()
+	placed, err := client.PlaceBet(ctx, &pb.PlaceBetRequest{
+		UserId:      "user-1",
+		EventId:     "event-1",
+		MarketId:    "market-1",
+		OutcomeId:   "outcome-1",
+		Stake:       "5.00",
+		Currency:    "USDT",
+		ReferenceId: "ref-g-settle-invalid",
+	})
+	require.NoError(t, err)
+
+	_, err = client.SettleBet(ctx, &pb.SettleBetRequest{BetId: placed.Bet.Id, Outcome: "unknown"})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
 func TestGRPCSettleBetRejectsNonAdminCaller(t *testing.T) {
 	client, _, oddsfeed := newSportsbookServer(t)
 	oddsfeed.seedEvent("event-1", "market-1", "outcome-1", "2.00")

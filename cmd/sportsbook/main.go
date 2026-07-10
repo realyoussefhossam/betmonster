@@ -30,7 +30,9 @@ func main() {
 		logger.Error("failed to open database", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	if err := db.Ping(); err != nil {
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer pingCancel()
+	if err := db.PingContext(pingCtx); err != nil {
 		logger.Error("failed to ping database", slog.String("error", err.Error()))
 		os.Exit(1)
 	}

@@ -2,6 +2,8 @@ package sportsbook
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
@@ -60,10 +62,28 @@ func NewGRPCServer(svc *Service) *GRPCServer {
 	return &GRPCServer{svc: svc}
 }
 
+// mapServiceError converts domain/service errors into gRPC status errors so
+// callers receive meaningful status codes instead of generic Internal errors.
+func mapServiceError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, ErrBetNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	}
+	// Treat explicit validation messages as InvalidArgument.
+	msg := err.Error()
+	if strings.HasPrefix(msg, "missing") || strings.HasPrefix(msg, "invalid") || strings.HasPrefix(msg, "stake") {
+		return status.Error(codes.InvalidArgument, msg)
+	}
+	return status.Error(codes.Internal, msg)
+}
+
 func (s *GRPCServer) PlaceBet(ctx context.Context, req *pb.PlaceBetRequest) (*pb.PlaceBetResponse, error) {
 	bet, err := s.svc.PlaceBet(ctx, req.UserId, req.EventId, req.MarketId, req.OutcomeId, req.Stake, req.Currency, req.ReferenceId)
 	if err != nil {
-		return nil, err
+		return nil, mapServiceError(err)
 	}
 	return &pb.PlaceBetResponse{Bet: betToProto(bet)}, nil
 }
@@ -71,7 +91,7 @@ func (s *GRPCServer) PlaceBet(ctx context.Context, req *pb.PlaceBetRequest) (*pb
 func (s *GRPCServer) GetBet(ctx context.Context, req *pb.GetBetRequest) (*pb.GetBetResponse, error) {
 	bet, err := s.svc.GetBet(ctx, req.Id)
 	if err != nil {
-		return nil, err
+		return nil, mapServiceError(err)
 	}
 	return &pb.GetBetResponse{Bet: betToProto(*bet)}, nil
 }
@@ -79,7 +99,7 @@ func (s *GRPCServer) GetBet(ctx context.Context, req *pb.GetBetRequest) (*pb.Get
 func (s *GRPCServer) ListBets(ctx context.Context, req *pb.ListBetsRequest) (*pb.ListBetsResponse, error) {
 	bets, err := s.svc.ListBets(ctx, req.UserId, req.Status, int(req.Page), int(req.PageSize))
 	if err != nil {
-		return nil, err
+		return nil, mapServiceError(err)
 	}
 	out := make([]*pb.Bet, 0, len(bets))
 	for _, b := range bets {
@@ -91,7 +111,7 @@ func (s *GRPCServer) ListBets(ctx context.Context, req *pb.ListBetsRequest) (*pb
 func (s *GRPCServer) SettleBet(ctx context.Context, req *pb.SettleBetRequest) (*pb.SettleBetResponse, error) {
 	bet, err := s.svc.SettleBet(ctx, req.BetId, req.Outcome)
 	if err != nil {
-		return nil, err
+		return nil, mapServiceError(err)
 	}
 	return &pb.SettleBetResponse{Bet: betToProto(bet)}, nil
 }

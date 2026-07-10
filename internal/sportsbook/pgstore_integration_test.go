@@ -171,6 +171,32 @@ func TestPGStoreUpdateBetStatus(t *testing.T) {
 	assert.NotNil(t, got.SettledAt)
 }
 
+func TestPGStoreUpdateBetStatusPreservesSettledAt(t *testing.T) {
+	store, cleanup := setupSportsbookPGStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	id, err := store.CreateBet(ctx, Bet{
+		UserID: "user-1", EventID: uuid.New().String(), MarketID: uuid.New().String(), OutcomeID: uuid.New().String(),
+		Odds: "2.00", Stake: "5.00", PotentialPayout: "10", Currency: "USDT",
+		Status: StatusPending, ReferenceID: "ref-pg-update-preserve", CreatedAt: time.Now(),
+	})
+	require.NoError(t, err)
+
+	settledAt := time.Now().UTC().Truncate(time.Millisecond)
+	err = store.UpdateBetStatus(ctx, id, StatusWon, settledAt)
+	require.NoError(t, err)
+
+	// A subsequent update with a zero settled_at must not overwrite the existing value.
+	err = store.UpdateBetStatus(ctx, id, StatusWon, time.Time{})
+	require.NoError(t, err)
+
+	got, err := store.GetBet(ctx, id)
+	require.NoError(t, err)
+	require.NotNil(t, got.SettledAt)
+	assert.Equal(t, settledAt, got.SettledAt.UTC().Truncate(time.Millisecond))
+}
+
 func TestPGStoreListPendingBets(t *testing.T) {
 	store, cleanup := setupSportsbookPGStore(t)
 	defer cleanup()

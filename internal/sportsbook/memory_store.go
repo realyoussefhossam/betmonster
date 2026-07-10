@@ -166,6 +166,8 @@ func (s *InMemoryStore) SetCreditTransactionID(ctx context.Context, id, creditTx
 	return nil
 }
 
+// ListPendingBets returns pending bets ordered oldest-first (created_at ASC),
+// matching PGStore and the scheduler's expectations.
 func (s *InMemoryStore) ListPendingBets(ctx context.Context, page, pageSize int) ([]Bet, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
