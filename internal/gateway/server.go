@@ -12,6 +12,8 @@ import (
 
 	"github.com/realyoussefhossam/betmonster/internal/auth"
 	"github.com/realyoussefhossam/betmonster/internal/shared/server"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,6 +22,7 @@ type Server struct {
 	logger              *slog.Logger
 	wallet              *WalletClient
 	oddsfeed            *OddsFeedClient
+	sportsbook          *SportsbookClient
 	jwksClient          *auth.JWKSClient
 	limiter             *RateLimiter
 	adminUserIDs        map[string]struct{}
@@ -31,7 +34,7 @@ type Server struct {
 	limits              Limits
 }
 
-func NewServer(logger *slog.Logger, wallet *WalletClient, oddsfeed *OddsFeedClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains, supportedPairs string, limits Limits) *Server {
+func NewServer(logger *slog.Logger, wallet *WalletClient, oddsfeed *OddsFeedClient, sportsbook *SportsbookClient, jwksClient *auth.JWKSClient, limiter *RateLimiter, adminUserIDs, corsAllowedOrigins, supportedCurrencies, supportedChains, supportedPairs string, limits Limits) *Server {
 	admins := map[string]struct{}{}
 	for _, id := range strings.Split(adminUserIDs, ",") {
 		id = strings.TrimSpace(id)
@@ -65,6 +68,7 @@ func NewServer(logger *slog.Logger, wallet *WalletClient, oddsfeed *OddsFeedClie
 		logger:              logger,
 		wallet:              wallet,
 		oddsfeed:            oddsfeed,
+		sportsbook:          sportsbook,
 		jwksClient:          jwksClient,
 		limiter:             limiter,
 		adminUserIDs:        admins,
@@ -185,6 +189,10 @@ func (s *Server) Router() http.Handler {
 	mux.Handle("/api/events/{event_id}/markets", server.WithRoutePattern("/api/events/{event_id}/markets", http.HandlerFunc(s.handleListMarkets)))
 	mux.Handle("/api/markets/{market_id}/outcomes", server.WithRoutePattern("/api/markets/{market_id}/outcomes", http.HandlerFunc(s.handleListOutcomes)))
 	mux.Handle("/api/live/events", server.WithRoutePattern("/api/live/events", http.HandlerFunc(s.handleListLiveEvents)))
+
+	mux.Handle("/api/bets", server.WithRoutePattern("/api/bets", s.auth(http.HandlerFunc(s.handleBets))))
+	mux.Handle("/api/bets/{bet_id}", server.WithRoutePattern("/api/bets/{bet_id}", s.auth(http.HandlerFunc(s.handleGetBet))))
+	mux.Handle("/api/admin/bets/settle", server.WithRoutePattern("/api/admin/bets/settle", s.auth(s.admin(http.HandlerFunc(s.handleSettleBet)))))
 
 	return server.RequestID(server.Logging(s.logger, server.Metrics(s.limiter.Middleware(s.cors(mux)))))
 }
@@ -558,6 +566,118 @@ func pagination(r *http.Request) (int, int) {
 		pageSize = v
 	}
 	return page, pageSize
+}
+
+func (s *Server) handleBets(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		s.handlePlaceBet(w, r)
+	case http.MethodGet:
+		s.handleListBets(w, r)
+	default:
+		s.writeError(w, http.StatusMethodNotAllowed, nil)
+	}
+}
+
+func (s *Server) handlePlaceBet(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.userFromContext(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		EventID     string `json:"eventId"`
+		MarketID    string `json:"marketId"`
+		OutcomeID   string `json:"outcomeId"`
+		Stake       string `json:"stake"`
+		Currency    string `json:"currency"`
+		ReferenceID string `json:"referenceId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	resp, err := s.sportsbook.PlaceBet(r.Context(), user.ID, body.EventID, body.MarketID, body.OutcomeID, body.Stake, body.Currency, body.ReferenceID)
+	if err != nil {
+		s.writeError(w, grpcStatusToHTTP(err), err)
+		return
+	}
+	s.writeJSON(w, http.StatusCreated, resp)
+}
+
+func (s *Server) handleListBets(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.userFromContext(w, r)
+	if !ok {
+		return
+	}
+	status := r.URL.Query().Get("status")
+	page, pageSize := pagination(r)
+	resp, err := s.sportsbook.ListBets(r.Context(), user.ID, status, page, pageSize)
+	if err != nil {
+		s.writeError(w, grpcStatusToHTTP(err), err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleGetBet(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.userFromContext(w, r)
+	if !ok {
+		return
+	}
+	betID := r.PathValue("bet_id")
+	resp, err := s.sportsbook.GetBet(r.Context(), betID)
+	if err != nil {
+		s.writeError(w, grpcStatusToHTTP(err), err)
+		return
+	}
+	if resp == nil || resp.Bet == nil || resp.Bet.UserId != user.ID {
+		s.writeError(w, http.StatusNotFound, fmt.Errorf("bet not found"))
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleSettleBet(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		BetID   string `json:"betId"`
+		Outcome string `json:"outcome"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	resp, err := s.sportsbook.SettleBet(r.Context(), body.BetID, body.Outcome)
+	if err != nil {
+		s.writeError(w, grpcStatusToHTTP(err), err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, resp)
+}
+
+func grpcStatusToHTTP(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		return http.StatusInternalServerError
+	}
+	switch st.Code() {
+	case codes.InvalidArgument:
+		return http.StatusBadRequest
+	case codes.NotFound:
+		return http.StatusNotFound
+	case codes.AlreadyExists:
+		return http.StatusConflict
+	case codes.Unauthenticated:
+		return http.StatusUnauthorized
+	case codes.PermissionDenied:
+		return http.StatusForbidden
+	case codes.FailedPrecondition:
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func (s *Server) writeError(w http.ResponseWriter, status int, err error) {

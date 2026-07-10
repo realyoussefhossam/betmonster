@@ -33,6 +33,11 @@ func main() {
 		logger.Error("failed to connect oddsfeed service; will retry lazily", slog.String("error", err.Error()))
 	}
 
+	sportsbookClient, err := gateway.NewSportsbookClient(cfg.SportsbookServiceAddr)
+	if err != nil {
+		logger.Error("failed to connect sportsbook service; will retry lazily", slog.String("error", err.Error()))
+	}
+
 	limiter := gateway.NewRateLimiter(cfg.RateLimitBackend, cfg.RedisAddr, cfg.RateLimitRPS, cfg.RateLimitBurst)
 	defer limiter.Close()
 	if cfg.RateLimitBackend == "redis" {
@@ -51,7 +56,7 @@ func main() {
 		DailyWithdrawal: cfg.DailyWithdrawal,
 	}
 
-	server := gateway.NewServer(logger, walletClient, oddsfeedClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains, cfg.SupportedPairs, limits)
+	server := gateway.NewServer(logger, walletClient, oddsfeedClient, sportsbookClient, jwksClient, limiter, cfg.AdminUserIDs, cfg.CORSAllowedOrigins, cfg.SupportedCurrencies, cfg.SupportedChains, cfg.SupportedPairs, limits)
 	logger.Info("gateway starting", slog.String("port", cfg.Port))
 	if err := http.ListenAndServe(":"+cfg.Port, server.Router()); err != nil {
 		logger.Error("gateway stopped", slog.String("error", err.Error()))

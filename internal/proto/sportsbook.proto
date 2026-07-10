@@ -1,0 +1,62 @@
+syntax = "proto3";
+package sportsbook;
+option go_package = "github.com/realyoussefhossam/betmonster/internal/proto";
+
+service SportsbookService {
+  rpc PlaceBet(PlaceBetRequest) returns (PlaceBetResponse);
+  rpc GetBet(GetBetRequest) returns (GetBetResponse);
+  rpc ListBets(ListBetsRequest) returns (ListBetsResponse);
+  rpc SettleBet(SettleBetRequest) returns (SettleBetResponse);
+}
+
+message OddsSnapshot {
+  string outcome_id = 1;
+  string odds = 2;  // decimal string, e.g. "2.10"
+}
+
+message Bet {
+  string id = 1;
+  string user_id = 2;
+  string event_id = 3;
+  string market_id = 4;
+  string outcome_id = 5;
+  string odds = 6;
+  string stake = 7;  // decimal string
+  string potential_payout = 8;
+  string currency = 9;
+  string status = 10;  // debit_pending, pending, won, lost, cancelled, settled
+  string reference_id = 11;
+  string created_at = 12;
+  string settled_at = 13;
+  string debit_transaction_id = 14;
+  string credit_transaction_id = 15;
+}
+
+message PlaceBetRequest {
+  string user_id = 1;
+  string event_id = 2;
+  string market_id = 3;
+  string outcome_id = 4;
+  string stake = 5;
+  string currency = 6;
+  string reference_id = 7;
+}
+
+message PlaceBetResponse { Bet bet = 1; }
+
+message GetBetRequest { string id = 1; }
+message GetBetResponse { Bet bet = 1; }
+
+message ListBetsRequest {
+  string user_id = 1;
+  string status = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+message ListBetsResponse { repeated Bet bets = 1; }
+
+message SettleBetRequest {
+  string bet_id = 1;
+  string outcome = 2;  // won, lost, cancelled
+}
+message SettleBetResponse { Bet bet = 1; }

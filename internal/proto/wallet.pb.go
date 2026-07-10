@@ -1157,6 +1157,262 @@ func (x *ReviewWithdrawalResponse) GetStatus() string {
 	return ""
 }
 
+type DebitWalletRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Currency      string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
+	Amount        string                 `protobuf:"bytes,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	ReferenceId   string                 `protobuf:"bytes,4,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
+	Metadata      string                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DebitWalletRequest) Reset() {
+	*x = DebitWalletRequest{}
+	mi := &file_internal_proto_wallet_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DebitWalletRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DebitWalletRequest) ProtoMessage() {}
+
+func (x *DebitWalletRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_wallet_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DebitWalletRequest.ProtoReflect.Descriptor instead.
+func (*DebitWalletRequest) Descriptor() ([]byte, []int) {
+	return file_internal_proto_wallet_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *DebitWalletRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *DebitWalletRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *DebitWalletRequest) GetAmount() string {
+	if x != nil {
+		return x.Amount
+	}
+	return ""
+}
+
+func (x *DebitWalletRequest) GetReferenceId() string {
+	if x != nil {
+		return x.ReferenceId
+	}
+	return ""
+}
+
+func (x *DebitWalletRequest) GetMetadata() string {
+	if x != nil {
+		return x.Metadata
+	}
+	return ""
+}
+
+type DebitWalletResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransactionId string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DebitWalletResponse) Reset() {
+	*x = DebitWalletResponse{}
+	mi := &file_internal_proto_wallet_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DebitWalletResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DebitWalletResponse) ProtoMessage() {}
+
+func (x *DebitWalletResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_wallet_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DebitWalletResponse.ProtoReflect.Descriptor instead.
+func (*DebitWalletResponse) Descriptor() ([]byte, []int) {
+	return file_internal_proto_wallet_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *DebitWalletResponse) GetTransactionId() string {
+	if x != nil {
+		return x.TransactionId
+	}
+	return ""
+}
+
+func (x *DebitWalletResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+type CreditWalletRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Currency      string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
+	Amount        string                 `protobuf:"bytes,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	ReferenceId   string                 `protobuf:"bytes,4,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
+	Metadata      string                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreditWalletRequest) Reset() {
+	*x = CreditWalletRequest{}
+	mi := &file_internal_proto_wallet_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreditWalletRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreditWalletRequest) ProtoMessage() {}
+
+func (x *CreditWalletRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_wallet_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreditWalletRequest.ProtoReflect.Descriptor instead.
+func (*CreditWalletRequest) Descriptor() ([]byte, []int) {
+	return file_internal_proto_wallet_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *CreditWalletRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreditWalletRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CreditWalletRequest) GetAmount() string {
+	if x != nil {
+		return x.Amount
+	}
+	return ""
+}
+
+func (x *CreditWalletRequest) GetReferenceId() string {
+	if x != nil {
+		return x.ReferenceId
+	}
+	return ""
+}
+
+func (x *CreditWalletRequest) GetMetadata() string {
+	if x != nil {
+		return x.Metadata
+	}
+	return ""
+}
+
+type CreditWalletResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransactionId string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreditWalletResponse) Reset() {
+	*x = CreditWalletResponse{}
+	mi := &file_internal_proto_wallet_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreditWalletResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreditWalletResponse) ProtoMessage() {}
+
+func (x *CreditWalletResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_wallet_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreditWalletResponse.ProtoReflect.Descriptor instead.
+func (*CreditWalletResponse) Descriptor() ([]byte, []int) {
+	return file_internal_proto_wallet_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *CreditWalletResponse) GetTransactionId() string {
+	if x != nil {
+		return x.TransactionId
+	}
+	return ""
+}
+
+func (x *CreditWalletResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 var File_internal_proto_wallet_proto protoreflect.FileDescriptor
 
 const file_internal_proto_wallet_proto_rawDesc = "" +
@@ -1253,7 +1509,25 @@ const file_internal_proto_wallet_proto_rawDesc = "" +
 	"\vreviewed_by\x18\x04 \x01(\tR\n" +
 	"reviewedBy\"2\n" +
 	"\x18ReviewWithdrawalResponse\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status2\xc4\x05\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\"\xa0\x01\n" +
+	"\x12DebitWalletRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\bcurrency\x18\x02 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\tR\x06amount\x12!\n" +
+	"\freference_id\x18\x04 \x01(\tR\vreferenceId\x12\x1a\n" +
+	"\bmetadata\x18\x05 \x01(\tR\bmetadata\"T\n" +
+	"\x13DebitWalletResponse\x12%\n" +
+	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"\xa1\x01\n" +
+	"\x13CreditWalletRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\bcurrency\x18\x02 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\tR\x06amount\x12!\n" +
+	"\freference_id\x18\x04 \x01(\tR\vreferenceId\x12\x1a\n" +
+	"\bmetadata\x18\x05 \x01(\tR\bmetadata\"U\n" +
+	"\x14CreditWalletResponse\x12%\n" +
+	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status2\xd7\x06\n" +
 	"\rWalletService\x12=\n" +
 	"\bGetRates\x12\x17.wallet.GetRatesRequest\x1a\x18.wallet.GetRatesResponse\x12C\n" +
 	"\n" +
@@ -1263,7 +1537,9 @@ const file_internal_proto_wallet_proto_rawDesc = "" +
 	"\x11RequestWithdrawal\x12 .wallet.RequestWithdrawalRequest\x1a!.wallet.RequestWithdrawalResponse\x12d\n" +
 	"\x15ProcessDepositWebhook\x12$.wallet.ProcessDepositWebhookRequest\x1a%.wallet.ProcessDepositWebhookResponse\x12g\n" +
 	"\x16ListPendingWithdrawals\x12%.wallet.ListPendingWithdrawalsRequest\x1a&.wallet.ListPendingWithdrawalsResponse\x12U\n" +
-	"\x10ReviewWithdrawal\x12\x1f.wallet.ReviewWithdrawalRequest\x1a .wallet.ReviewWithdrawalResponseB8Z6github.com/realyoussefhossam/betmonster/internal/protob\x06proto3"
+	"\x10ReviewWithdrawal\x12\x1f.wallet.ReviewWithdrawalRequest\x1a .wallet.ReviewWithdrawalResponse\x12F\n" +
+	"\vDebitWallet\x12\x1a.wallet.DebitWalletRequest\x1a\x1b.wallet.DebitWalletResponse\x12I\n" +
+	"\fCreditWallet\x12\x1b.wallet.CreditWalletRequest\x1a\x1c.wallet.CreditWalletResponseB8Z6github.com/realyoussefhossam/betmonster/internal/protob\x06proto3"
 
 var (
 	file_internal_proto_wallet_proto_rawDescOnce sync.Once
@@ -1277,7 +1553,7 @@ func file_internal_proto_wallet_proto_rawDescGZIP() []byte {
 	return file_internal_proto_wallet_proto_rawDescData
 }
 
-var file_internal_proto_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_internal_proto_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_internal_proto_wallet_proto_goTypes = []any{
 	(*GetBalanceRequest)(nil),              // 0: wallet.GetBalanceRequest
 	(*GetBalanceResponse)(nil),             // 1: wallet.GetBalanceResponse
@@ -1297,13 +1573,17 @@ var file_internal_proto_wallet_proto_goTypes = []any{
 	(*ListPendingWithdrawalsResponse)(nil), // 15: wallet.ListPendingWithdrawalsResponse
 	(*ReviewWithdrawalRequest)(nil),        // 16: wallet.ReviewWithdrawalRequest
 	(*ReviewWithdrawalResponse)(nil),       // 17: wallet.ReviewWithdrawalResponse
-	nil,                                    // 18: wallet.GetRatesResponse.RatesEntry
-	nil,                                    // 19: wallet.ProcessDepositWebhookRequest.HeadersEntry
+	(*DebitWalletRequest)(nil),             // 18: wallet.DebitWalletRequest
+	(*DebitWalletResponse)(nil),            // 19: wallet.DebitWalletResponse
+	(*CreditWalletRequest)(nil),            // 20: wallet.CreditWalletRequest
+	(*CreditWalletResponse)(nil),           // 21: wallet.CreditWalletResponse
+	nil,                                    // 22: wallet.GetRatesResponse.RatesEntry
+	nil,                                    // 23: wallet.ProcessDepositWebhookRequest.HeadersEntry
 }
 var file_internal_proto_wallet_proto_depIdxs = []int32{
 	2,  // 0: wallet.ListTransactionsResponse.transactions:type_name -> wallet.Transaction
-	18, // 1: wallet.GetRatesResponse.rates:type_name -> wallet.GetRatesResponse.RatesEntry
-	19, // 2: wallet.ProcessDepositWebhookRequest.headers:type_name -> wallet.ProcessDepositWebhookRequest.HeadersEntry
+	22, // 1: wallet.GetRatesResponse.rates:type_name -> wallet.GetRatesResponse.RatesEntry
+	23, // 2: wallet.ProcessDepositWebhookRequest.headers:type_name -> wallet.ProcessDepositWebhookRequest.HeadersEntry
 	13, // 3: wallet.ListPendingWithdrawalsResponse.withdrawals:type_name -> wallet.WithdrawalRequest
 	5,  // 4: wallet.WalletService.GetRates:input_type -> wallet.GetRatesRequest
 	0,  // 5: wallet.WalletService.GetBalance:input_type -> wallet.GetBalanceRequest
@@ -1313,16 +1593,20 @@ var file_internal_proto_wallet_proto_depIdxs = []int32{
 	11, // 9: wallet.WalletService.ProcessDepositWebhook:input_type -> wallet.ProcessDepositWebhookRequest
 	14, // 10: wallet.WalletService.ListPendingWithdrawals:input_type -> wallet.ListPendingWithdrawalsRequest
 	16, // 11: wallet.WalletService.ReviewWithdrawal:input_type -> wallet.ReviewWithdrawalRequest
-	6,  // 12: wallet.WalletService.GetRates:output_type -> wallet.GetRatesResponse
-	1,  // 13: wallet.WalletService.GetBalance:output_type -> wallet.GetBalanceResponse
-	4,  // 14: wallet.WalletService.ListTransactions:output_type -> wallet.ListTransactionsResponse
-	8,  // 15: wallet.WalletService.GetDepositAddress:output_type -> wallet.GetDepositAddressResponse
-	10, // 16: wallet.WalletService.RequestWithdrawal:output_type -> wallet.RequestWithdrawalResponse
-	12, // 17: wallet.WalletService.ProcessDepositWebhook:output_type -> wallet.ProcessDepositWebhookResponse
-	15, // 18: wallet.WalletService.ListPendingWithdrawals:output_type -> wallet.ListPendingWithdrawalsResponse
-	17, // 19: wallet.WalletService.ReviewWithdrawal:output_type -> wallet.ReviewWithdrawalResponse
-	12, // [12:20] is the sub-list for method output_type
-	4,  // [4:12] is the sub-list for method input_type
+	18, // 12: wallet.WalletService.DebitWallet:input_type -> wallet.DebitWalletRequest
+	20, // 13: wallet.WalletService.CreditWallet:input_type -> wallet.CreditWalletRequest
+	6,  // 14: wallet.WalletService.GetRates:output_type -> wallet.GetRatesResponse
+	1,  // 15: wallet.WalletService.GetBalance:output_type -> wallet.GetBalanceResponse
+	4,  // 16: wallet.WalletService.ListTransactions:output_type -> wallet.ListTransactionsResponse
+	8,  // 17: wallet.WalletService.GetDepositAddress:output_type -> wallet.GetDepositAddressResponse
+	10, // 18: wallet.WalletService.RequestWithdrawal:output_type -> wallet.RequestWithdrawalResponse
+	12, // 19: wallet.WalletService.ProcessDepositWebhook:output_type -> wallet.ProcessDepositWebhookResponse
+	15, // 20: wallet.WalletService.ListPendingWithdrawals:output_type -> wallet.ListPendingWithdrawalsResponse
+	17, // 21: wallet.WalletService.ReviewWithdrawal:output_type -> wallet.ReviewWithdrawalResponse
+	19, // 22: wallet.WalletService.DebitWallet:output_type -> wallet.DebitWalletResponse
+	21, // 23: wallet.WalletService.CreditWallet:output_type -> wallet.CreditWalletResponse
+	14, // [14:24] is the sub-list for method output_type
+	4,  // [4:14] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -1339,7 +1623,7 @@ func file_internal_proto_wallet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_wallet_proto_rawDesc), len(file_internal_proto_wallet_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

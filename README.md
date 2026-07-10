@@ -55,7 +55,8 @@ BTC, SOL, LTC, DOGE, XRP, AVAX, and TON require non-EVM/non-Tron pipeline work a
 - **Next.js + Better Auth**: auth, sessions, UI, admin dashboard.
 - **Go Gateway**: JWT verification via Better Auth JWKS, public HTTP API, routes to wallet.
 - **Go Wallet**: owns wallet DB, balances, ledger, deposits, withdrawals.
-- **Go Odds/Feed**: ingests external sports data (Azuro as the first provider), normalizes it into an internal model, and exposes sports/odds via gRPC to the gateway and future sportsbook service.
+- **Go Odds/Feed**: ingests external sports data (Azuro as the first provider), normalizes it into an internal model, and exposes sports/odds via gRPC to the gateway and sportsbook service.
+- **Go Sportsbook**: betting engine for single moneyline bets; locks stakes via the wallet service, records odds snapshots, and settles outcomes.
 - **xcash**: self-hosted crypto payment gateway used only for deposits.
 - **Postgres**: Better Auth (Next.js/Prisma), wallet service, and oddsfeed service databases.
 - **Redis**: cache and idempotency (v1 lays the groundwork).
@@ -85,6 +86,7 @@ This starts:
 - Gateway on http://localhost:8080
 - Wallet gRPC on localhost:50051 and health on http://localhost:8081
 - Odds/Feed gRPC on localhost:50052 and health on http://localhost:8082
+- Sportsbook gRPC on localhost:50053 and health on http://localhost:8083
 - Postgres on localhost:5433
 - Redis on localhost:6379
 - NATS on localhost:4222
@@ -123,7 +125,7 @@ make test
 # Run wallet integration tests against a real Postgres (requires TEST_DATABASE_URL)
 make integration-test
 
-# Build all binaries (gateway, wallet, oddsfeed)
+# Build all binaries (gateway, wallet, oddsfeed, sportsbook)
 make build
 
 # Run wallet migrations
@@ -190,6 +192,10 @@ The bootstrap is idempotent: it recreates the anvil chain record, deploys USDT/U
 | `GET /api/events/{event_id}/markets` | List markets for an event |
 | `GET /api/markets/{market_id}/outcomes` | List outcomes for a market |
 | `GET /api/live/events` | List currently live events with scores |
+| `POST /api/bets` | Place a single moneyline bet (auth required) |
+| `GET /api/bets` | List authenticated user's bets (auth required) |
+| `GET /api/bets/{bet_id}` | Get a single bet (auth required) |
+| `POST /api/admin/bets/settle` | Manually settle a bet as won/lost/cancelled (admin required) |
 
 ## Docs
 
