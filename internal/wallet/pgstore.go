@@ -165,7 +165,7 @@ func (s *PGStore) CreditWallet(ctx context.Context, userID, currency, amount, re
 	return &txn, nil
 }
 
-func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string) (*Transaction, error) {
+func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -240,11 +240,11 @@ func (s *PGStore) DebitWallet(ctx context.Context, userID, currency, amount, ref
 
 	var txn Transaction
 	q := `
-		INSERT INTO transactions (user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id)
-		VALUES ($1, $2, $3, 'withdrawal', $4, $5, $6, 'completed', $7)
+		INSERT INTO transactions (user_id, wallet_id, currency, type, amount, balance_before, balance_after, status, reference_id, metadata)
+		VALUES ($1, $2, $3, 'withdrawal', $4, $5, $6, 'completed', $7, $8)
 		RETURNING id, created_at
 	`
-	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID).Scan(&txn.ID, &txn.CreatedAt)
+	err = tx.QueryRowContext(ctx, q, userID, w.ID, currency, amount, w.Balance, newBalance, refID, metadata).Scan(&txn.ID, &txn.CreatedAt)
 	if err != nil {
 		if referenceID != "" {
 			var existingID string

@@ -38,7 +38,7 @@ func TestServiceDebitWalletInsufficientBalance(t *testing.T) {
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "50.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	_, err = svc.DebitWallet(ctx, "user-1", "USDT", "100.00", "wd-1")
+	_, err = svc.DebitWallet(ctx, "user-1", "USDT", "100.00", "wd-1", nil)
 	assert.Error(t, err)
 
 	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
@@ -54,7 +54,7 @@ func TestServiceDebitWallet(t *testing.T) {
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "withdrawal", tx.Type)
 	assert.Equal(t, "60", tx.BalanceAfter)
@@ -72,13 +72,13 @@ func TestServiceDebitWalletIdempotent(t *testing.T) {
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	assert.NoError(t, err)
 
-	tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "withdrawal", tx.Type)
 	assert.Equal(t, "60", tx.BalanceAfter)
 
 	// idempotent
-	tx2, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	tx2, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, tx.ID, tx2.ID)
 
@@ -104,7 +104,7 @@ func TestServiceDebitWalletConcurrent(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-concurrent")
+			tx, err := svc.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-concurrent", nil)
 			if err != nil {
 				errCount.Add(1)
 				t.Errorf("debit failed: %v", err)
@@ -309,7 +309,7 @@ func TestServiceDebitWalletInvalidAmount(t *testing.T) {
 	_, err := svc.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	require.NoError(t, err)
 
-	_, err = svc.DebitWallet(ctx, "user-1", "USDT", "invalid", "wd-1")
+	_, err = svc.DebitWallet(ctx, "user-1", "USDT", "invalid", "wd-1", nil)
 	assert.Error(t, err)
 
 	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
