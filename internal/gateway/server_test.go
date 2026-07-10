@@ -22,6 +22,7 @@ import (
 	"github.com/realyoussefhossam/betmonster/internal/auth"
 	oddsfeed "github.com/realyoussefhossam/betmonster/internal/oddsfeed"
 	pb "github.com/realyoussefhossam/betmonster/internal/proto"
+	"github.com/realyoussefhossam/betmonster/internal/sportsbook"
 	wallet "github.com/realyoussefhossam/betmonster/internal/wallet"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/xcash"
@@ -30,11 +31,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestHealthHandler(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
+	srv := NewServer(logger, nil, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
@@ -46,7 +48,7 @@ func TestHealthHandler(t *testing.T) {
 
 func TestSupportedOptions(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT,USDC", "anvil,base", "", Limits{})
+	srv := NewServer(logger, nil, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT,USDC", "anvil,base", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/supported", nil)
 	w := httptest.NewRecorder()
 
@@ -61,7 +63,7 @@ func TestSupportedOptions(t *testing.T) {
 
 func TestHandleBalanceUnsupportedCurrency(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
+	srv := NewServer(logger, nil, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/balance?currency=BTC", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-1"}))
 	w := httptest.NewRecorder()
@@ -74,7 +76,7 @@ func TestHandleBalanceUnsupportedCurrency(t *testing.T) {
 
 func TestHandleDepositAddressUnsupportedPair(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, nil, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/deposit-address?currency=BNB&chain=anvil", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-1"}))
 	w := httptest.NewRecorder()
@@ -110,7 +112,7 @@ func TestHandleXcashWebhookParsesNestedAmount(t *testing.T) {
 	defer conn.Close()
 
 	walletClient := &WalletClient{conn: pb.NewWalletServiceClient(conn)}
-	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	body := `{"type":"deposit","data":{"sys_no":"DXC1","uid":"u1","amount":"10","crypto":"USDT","chain":"anvil","confirmed":true,"hash":"0xabc","block":1,"risk_level":null,"risk_score":null}}`
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
@@ -154,7 +156,7 @@ func TestHandleRatesPublicEndpoint(t *testing.T) {
 	defer conn.Close()
 
 	walletClient := &WalletClient{conn: pb.NewWalletServiceClient(conn)}
-	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/rates", nil)
 	w := httptest.NewRecorder()
@@ -195,7 +197,7 @@ func TestGatewayForwardsCallerIdentityToWallet(t *testing.T) {
 	defer conn.Close()
 
 	walletClient := &WalletClient{conn: pb.NewWalletServiceClient(conn)}
-	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/wallet/balance", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, auth.User{ID: "user-42"}))
@@ -263,7 +265,7 @@ func newOddsFeedGatewayServer(t *testing.T, listener *bufconn.Listener) *Server 
 	t.Cleanup(func() { conn.Close() })
 
 	oddsClient := &OddsFeedClient{conn: pb.NewOddsFeedServiceClient(conn)}
-	return NewServer(logger, nil, oddsClient, nil, NewRateLimiter("memory", "", 100, 100), "", "", "", "", "", Limits{})
+	return NewServer(logger, nil, oddsClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "", "", "", Limits{})
 }
 
 func TestGatewayListSports(t *testing.T) {
@@ -515,7 +517,7 @@ func TestGatewayEndpoints(t *testing.T) {
 	jwksClient, token := newTestJWKSClient(t)
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, walletClient, nil, jwksClient, NewRateLimiter("memory", "", 100, 100), "admin-1", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, jwksClient, NewRateLimiter("memory", "", 100, 100), "admin-1", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	ctx := context.Background()
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "seed", nil)
@@ -625,7 +627,7 @@ func TestGatewayAdmin(t *testing.T) {
 	jwksClient, token := newTestJWKSClient(t)
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	srv := NewServer(logger, walletClient, nil, jwksClient, NewRateLimiter("memory", "", 100, 100), "admin-1", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, jwksClient, NewRateLimiter("memory", "", 100, 100), "admin-1", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	ctx := context.Background()
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "seed", nil)
@@ -720,7 +722,7 @@ func TestGatewayWebhookInvalidSignature(t *testing.T) {
 	defer conn.Close()
 
 	walletClient := &WalletClient{conn: pb.NewWalletServiceClient(conn)}
-	srv := NewServer(logger, walletClient, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
+	srv := NewServer(logger, walletClient, nil, nil, nil, NewRateLimiter("memory", "", 100, 100), "", "", "USDT", "anvil", "USDT:anvil", Limits{})
 
 	body := `{"type":"deposit","data":{"sys_no":"DXC1","uid":"u1","amount":"10","crypto":"USDT","chain":"anvil","confirmed":true,"hash":"0xabc","block":1,"risk_level":null,"risk_score":null}}`
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
@@ -735,4 +737,126 @@ func TestGatewayWebhookInvalidSignature(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "error")
+}
+
+type gatewayMockWallet struct{}
+
+func (m *gatewayMockWallet) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
+	return nil
+}
+
+func (m *gatewayMockWallet) CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) error {
+	return nil
+}
+
+type gatewayMockOddsFeed struct {
+	eventID   string
+	marketID  string
+	outcomeID string
+	odds      string
+}
+
+func (m *gatewayMockOddsFeed) GetEvent(ctx context.Context, id string) (*pb.Event, error) {
+	if id == m.eventID {
+		return &pb.Event{Id: m.eventID, Status: "upcoming"}, nil
+	}
+	return nil, nil
+}
+
+func (m *gatewayMockOddsFeed) ListMarkets(ctx context.Context, eventID, status string, page, pageSize int) ([]*pb.Market, error) {
+	if eventID == m.eventID {
+		return []*pb.Market{{Id: m.marketID, EventId: m.eventID, Status: "active"}}, nil
+	}
+	return nil, nil
+}
+
+func (m *gatewayMockOddsFeed) ListOutcomes(ctx context.Context, marketID, status string, page, pageSize int) ([]*pb.Outcome, error) {
+	if marketID == m.marketID {
+		return []*pb.Outcome{{Id: m.outcomeID, MarketId: m.marketID, Odds: m.odds, Status: "active"}}, nil
+	}
+	return nil, nil
+}
+
+func (m *gatewayMockOddsFeed) ListEvents(ctx context.Context, sportID, leagueID, status string, page, pageSize int) ([]*pb.Event, error) {
+	return nil, nil
+}
+
+func newSportsbookServerForGateway(t *testing.T) (*grpc.Server, *bufconn.Listener) {
+	t.Helper()
+	store := sportsbook.NewInMemoryStore()
+	wallet := &gatewayMockWallet{}
+	oddsfeed := &gatewayMockOddsFeed{eventID: "event-1", marketID: "market-1", outcomeID: "outcome-1", odds: "2.10"}
+	svc := sportsbook.NewService(store, wallet, oddsfeed)
+	grpcServer := grpc.NewServer()
+	pb.RegisterSportsbookServiceServer(grpcServer, sportsbook.NewGRPCServer(svc))
+
+	listener := bufconn.Listen(1024 * 1024)
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("sportsbook grpc server error: %v", err)
+		}
+	}()
+	t.Cleanup(grpcServer.Stop)
+	return grpcServer, listener
+}
+
+func newSportsbookGatewayServer(t *testing.T, listener *bufconn.Listener) (*Server, func()) {
+	t.Helper()
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	oddsClient := &SportsbookClient{conn: pb.NewSportsbookServiceClient(conn)}
+	srv := NewServer(logger, nil, nil, oddsClient, nil, NewRateLimiter("memory", "", 100, 100), "", "", "", "", "", Limits{})
+	return srv, func() { conn.Close() }
+}
+
+func TestGatewayPlaceBet(t *testing.T) {
+	_, listener := newSportsbookServerForGateway(t)
+	srv, cleanup := newSportsbookGatewayServer(t, listener)
+	defer cleanup()
+	jwksClient, token := newTestJWKSClient(t)
+	srv.jwksClient = jwksClient
+
+	body := `{"eventId":"event-1","marketId":"market-1","outcomeId":"outcome-1","stake":"10.00","currency":"USDT","referenceId":"ref-gw-1"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/bets", strings.NewReader(body))
+	req.Header.Set("Authorization", token("user-1"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp pb.PlaceBetResponse
+	require.NoError(t, protojson.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "user-1", resp.Bet.UserId)
+	assert.Equal(t, "21", resp.Bet.PotentialPayout)
+}
+
+func TestGatewayListBets(t *testing.T) {
+	_, listener := newSportsbookServerForGateway(t)
+	srv, cleanup := newSportsbookGatewayServer(t, listener)
+	defer cleanup()
+	jwksClient, token := newTestJWKSClient(t)
+	srv.jwksClient = jwksClient
+
+	ctx := context.Background()
+	_, err := srv.sportsbook.PlaceBet(ctx, "user-1", "event-1", "market-1", "outcome-1", "10.00", "USDT", "ref-gw-2")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/bets", nil)
+	req.Header.Set("Authorization", token("user-1"))
+	w := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp pb.ListBetsResponse
+	require.NoError(t, protojson.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Len(t, resp.Bets, 1)
+	assert.Equal(t, "user-1", resp.Bets[0].UserId)
 }

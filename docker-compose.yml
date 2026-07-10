@@ -91,6 +91,29 @@ services:
       nats:
         condition: service_started
 
+  sportsbook:
+    build:
+      context: .
+      dockerfile: Dockerfile.sportsbook
+    image: betmonster/sportsbook
+    ports:
+      - "8083:8083"
+      - "50053:50053"
+    environment:
+      PORT: "8083"
+      GRPC_PORT: "50053"
+      DATABASE_URL: postgres://wallet:wallet@postgres:5432/sportsbook?sslmode=disable
+      WALLET_SERVICE_ADDR: wallet:50051
+      ODDSFEED_SERVICE_ADDR: oddsfeed:50052
+      SETTLE_INTERVAL_SECONDS: ${SETTLE_INTERVAL_SECONDS:-60}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      wallet:
+        condition: service_started
+      oddsfeed:
+        condition: service_started
+
   gateway:
     build:
       context: .
@@ -103,6 +126,7 @@ services:
       JWKS_URL: ${JWKS_URL:-http://app:3000/api/auth/jwks}
       WALLET_SERVICE_ADDR: wallet:50051
       ODDSFEED_SERVICE_ADDR: oddsfeed:50052
+      SPORTSBOOK_SERVICE_ADDR: sportsbook:50053
       ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       SUPPORTED_CURRENCIES: ${SUPPORTED_CURRENCIES:-}
@@ -126,6 +150,8 @@ services:
       redis:
         condition: service_started
       oddsfeed:
+        condition: service_started
+      sportsbook:
         condition: service_started
 
   app:
