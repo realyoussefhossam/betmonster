@@ -9,6 +9,9 @@ export default function Page() {
         <Link href="/wallet">
           <Button>Wallet</Button>
         </Link>
+        <Link href="/sportsbook">
+          <Button variant="outline">Sportsbook</Button>
+        </Link>
         <Link href="/admin/withdrawals">
           <Button variant="outline">Admin</Button>
         </Link>
