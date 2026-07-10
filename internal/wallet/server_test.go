@@ -386,3 +386,118 @@ func TestAuthInterceptorSystemCallsWithoutUserMatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
+
+func TestGRPCServerDebitWallet(t *testing.T) {
+	ctx := metadata.AppendToOutgoingContext(context.Background(), grpcmeta.UserIDHeader, "user-1")
+	store := NewInMemoryStore()
+	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+	server := NewGRPCServer(svc, nil)
+
+	listener := bufconn.Listen(1024)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(AuthInterceptor))
+	pb.RegisterWalletServiceServer(grpcServer, server)
+
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("grpc server error: %v", err)
+		}
+	}()
+	defer grpcServer.Stop()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := pb.NewWalletServiceClient(conn)
+	resp, err := client.DebitWallet(ctx, &pb.DebitWalletRequest{
+		UserId: "user-1", Currency: "USDT", Amount: "30.00", ReferenceId: "debit-1", Metadata: "",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "completed", resp.Status)
+	assert.NotEmpty(t, resp.TransactionId)
+
+	bal, err := client.GetBalance(ctx, &pb.GetBalanceRequest{UserId: "user-1", Currency: "USDT"})
+	require.NoError(t, err)
+	assert.Equal(t, "70", bal.Balance)
+}
+
+func TestGRPCServerCreditWallet(t *testing.T) {
+	ctx := metadata.AppendToOutgoingContext(context.Background(), grpcmeta.UserIDHeader, "user-1")
+	store := NewInMemoryStore()
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+	server := NewGRPCServer(svc, nil)
+
+	listener := bufconn.Listen(1024)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(AuthInterceptor))
+	pb.RegisterWalletServiceServer(grpcServer, server)
+
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("grpc server error: %v", err)
+		}
+	}()
+	defer grpcServer.Stop()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := pb.NewWalletServiceClient(conn)
+	resp, err := client.CreditWallet(ctx, &pb.CreditWalletRequest{
+		UserId: "user-1", Currency: "USDT", Amount: "50.00", ReferenceId: "credit-1", Metadata: `{"reason":"test"}`,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "completed", resp.Status)
+	assert.NotEmpty(t, resp.TransactionId)
+
+	bal, err := client.GetBalance(ctx, &pb.GetBalanceRequest{UserId: "user-1", Currency: "USDT"})
+	require.NoError(t, err)
+	assert.Equal(t, "50", bal.Balance)
+}
+
+func TestGRPCServerDebitWalletIdempotent(t *testing.T) {
+	ctx := metadata.AppendToOutgoingContext(context.Background(), grpcmeta.UserIDHeader, "user-1")
+	store := NewInMemoryStore()
+	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
+	require.NoError(t, err)
+
+	svc := NewService(store, nil, nil, []string{"USDT:anvil"})
+	server := NewGRPCServer(svc, nil)
+
+	listener := bufconn.Listen(1024)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(AuthInterceptor))
+	pb.RegisterWalletServiceServer(grpcServer, server)
+
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("grpc server error: %v", err)
+		}
+	}()
+	defer grpcServer.Stop()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := pb.NewWalletServiceClient(conn)
+	req := &pb.DebitWalletRequest{UserId: "user-1", Currency: "USDT", Amount: "30.00", ReferenceId: "debit-same", Metadata: ""}
+	resp1, err := client.DebitWallet(ctx, req)
+	require.NoError(t, err)
+
+	resp2, err := client.DebitWallet(ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, resp1.TransactionId, resp2.TransactionId, "duplicate reference_id should return the same transaction")
+
+	bal, err := client.GetBalance(ctx, &pb.GetBalanceRequest{UserId: "user-1", Currency: "USDT"})
+	require.NoError(t, err)
+	assert.Equal(t, "70", bal.Balance, "balance should only be debited once")
+}

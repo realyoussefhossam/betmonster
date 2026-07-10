@@ -11,6 +11,8 @@ service WalletService {
   rpc ProcessDepositWebhook(ProcessDepositWebhookRequest) returns (ProcessDepositWebhookResponse);
   rpc ListPendingWithdrawals(ListPendingWithdrawalsRequest) returns (ListPendingWithdrawalsResponse);
   rpc ReviewWithdrawal(ReviewWithdrawalRequest) returns (ReviewWithdrawalResponse);
+  rpc DebitWallet(DebitWalletRequest) returns (DebitWalletResponse);
+  rpc CreditWallet(CreditWalletRequest) returns (CreditWalletResponse);
 }
 
 message GetBalanceRequest { string user_id = 1; string currency = 2; string fiat_currency = 3; }
@@ -78,3 +80,27 @@ message ReviewWithdrawalRequest {
   string reviewed_by = 4;
 }
 message ReviewWithdrawalResponse { string status = 1; }
+
+message DebitWalletRequest {
+  string user_id = 1;
+  string currency = 2;
+  string amount = 3;
+  string reference_id = 4;
+  string metadata = 5;
+}
+message DebitWalletResponse {
+  string transaction_id = 1;
+  string status = 2;
+}
+
+message CreditWalletRequest {
+  string user_id = 1;
+  string currency = 2;
+  string amount = 3;
+  string reference_id = 4;
+  string metadata = 5;
+}
+message CreditWalletResponse {
+  string transaction_id = 1;
+  string status = 2;
+}

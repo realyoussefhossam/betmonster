@@ -83,3 +83,17 @@ func (c *WalletClient) ReviewWithdrawal(ctx context.Context, id, action, txHash,
 		WithdrawalId: id, Action: action, TxHash: txHash, ReviewedBy: reviewedBy,
 	})
 }
+
+func (c *WalletClient) DebitWallet(ctx context.Context, userID, currency, amount, referenceID, metadataJSON string) (*pb.DebitWalletResponse, error) {
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs(grpcmeta.UserIDHeader, userID))
+	return c.conn.DebitWallet(ctx, &pb.DebitWalletRequest{
+		UserId: userID, Currency: currency, Amount: amount, ReferenceId: referenceID, Metadata: metadataJSON,
+	})
+}
+
+func (c *WalletClient) CreditWallet(ctx context.Context, userID, currency, amount, referenceID, metadataJSON string) (*pb.CreditWalletResponse, error) {
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs(grpcmeta.UserIDHeader, userID))
+	return c.conn.CreditWallet(ctx, &pb.CreditWalletRequest{
+		UserId: userID, Currency: currency, Amount: amount, ReferenceId: referenceID, Metadata: metadataJSON,
+	})
+}

@@ -2,6 +2,8 @@ package wallet
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -189,4 +191,26 @@ func (s *GRPCServer) ReviewWithdrawal(ctx context.Context, req *pb.ReviewWithdra
 		return nil, err
 	}
 	return &pb.ReviewWithdrawalResponse{Status: w.Status}, nil
+}
+
+func (s *GRPCServer) DebitWallet(ctx context.Context, req *pb.DebitWalletRequest) (*pb.DebitWalletResponse, error) {
+	tx, err := s.service.DebitWallet(ctx, req.UserId, req.Currency, req.Amount, req.ReferenceId)
+	if err != nil {
+		return nil, fmt.Errorf("debit wallet: %w", err)
+	}
+	return &pb.DebitWalletResponse{TransactionId: tx.ID, Status: tx.Status}, nil
+}
+
+func (s *GRPCServer) CreditWallet(ctx context.Context, req *pb.CreditWalletRequest) (*pb.CreditWalletResponse, error) {
+	var metadata map[string]any
+	if req.Metadata != "" {
+		if err := json.Unmarshal([]byte(req.Metadata), &metadata); err != nil {
+			return nil, fmt.Errorf("credit wallet metadata: %w", err)
+		}
+	}
+	tx, err := s.service.CreditWallet(ctx, req.UserId, req.Currency, req.Amount, req.ReferenceId, metadata)
+	if err != nil {
+		return nil, fmt.Errorf("credit wallet: %w", err)
+	}
+	return &pb.CreditWalletResponse{TransactionId: tx.ID, Status: tx.Status}, nil
 }
