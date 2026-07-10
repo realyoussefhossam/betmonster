@@ -7,7 +7,7 @@ Open-source, self-hosted sportsbook/casino platform.
 Build an **open-source, self-hosted sportsbook/casino platform** — similar to how xcash is an open-source self-hosted crypto payment gateway, but aiming to match the feature depth of leading crypto betting platforms (e.g., 1xBet, Stake, Roobet, Shuffle, Rainbet). Operators should be able to clone the repo, run a few scripts, and deploy their own fully functional sportsbook/casino.
 
 - **First slice:** wallet microservice (deposits via xcash, manual admin withdrawals, USDT/USDC balances).
-- **Later slices:** sportsbook engine, casino games, settlement, risk management, KYC/AML, automated withdrawals, operator dashboard, multi-tenant support, and enterprise custody.
+- **Later slices:** advanced sportsbook features (parlays, live betting, cash-out), casino games, settlement automation, risk management, KYC/AML, automated withdrawals, operator dashboard, multi-tenant support, and enterprise custody.
 
 ## Current Architecture
 
