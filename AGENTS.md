@@ -7,14 +7,15 @@ Open-source, self-hosted sportsbook/casino platform.
 Build an **open-source, self-hosted sportsbook/casino platform** — similar to how xcash is an open-source self-hosted crypto payment gateway, but aiming to match the feature depth of leading crypto betting platforms (e.g., 1xBet, Stake, Roobet, Shuffle, Rainbet). Operators should be able to clone the repo, run a few scripts, and deploy their own fully functional sportsbook/casino.
 
 - **First slice:** wallet microservice (deposits via xcash, manual admin withdrawals, USDT/USDC balances).
-- **Later slices:** sportsbook engine, casino games, settlement, risk management, KYC/AML, automated withdrawals, operator dashboard, multi-tenant support, and enterprise custody.
+- **Later slices:** advanced sportsbook features (parlays, live betting, cash-out), casino games, settlement automation, risk management, KYC/AML, automated withdrawals, operator dashboard, multi-tenant support, and enterprise custody.
 
 ## Current Architecture
 
 - **Next.js + Better Auth**: auth, sessions, UI, admin dashboard.
 - **Go gateway service**: JWT verification via Better Auth JWKS, routes to internal services.
 - **Go wallet service**: owns wallet DB, balance, ledger, deposits, withdrawals.
-- **Go Odds/Feed service**: ingests external sports data (Azuro as the first provider), normalizes it into an internal model, and exposes sports/odds via gRPC to the gateway and future sportsbook service.
+- **Go Odds/Feed service**: ingests external sports data (Azuro as the first provider), normalizes it into an internal model, and exposes sports/odds via gRPC to the gateway and sportsbook service.
+- **Go Sportsbook service**: v1 single moneyline betting engine. Calls wallet for stake debit/credit and oddsfeed for event/outcome validation.
 - **xcash**: self-hosted crypto payment gateway used **only for deposits**.
 - **NATS**: events between services.
 - **Redis**: cache and idempotency.
@@ -37,7 +38,7 @@ Build an **open-source, self-hosted sportsbook/casino platform** — similar to 
 |---|---|---|
 | **Gateway** | Public API, JWT verification, rate limiting | v1 |
 | **Wallet** | Balances, deposits, withdrawals, ledger | v1 |
-| **Sportsbook** | Events, odds, bet types, settlement | v2 |
+| **Sportsbook** | Events, odds, single moneyline bet placement, settlement | v1 |
 | **Casino** | Games, RNG, provably fair | v2 |
 | **Settlement** | Payouts, bet settlement | v2 |
 | **Risk** | Limits, KYC/AML hooks, geolocation, fraud | v2 |
@@ -116,6 +117,13 @@ Rules for money-related code:
   - gRPC contract tests.
   - Webhook integration tests with a mocked xcash server.
   - End-to-end Docker Compose tests for deposit and withdrawal flows.
+
+## Sportsbook v1 notes
+
+- Stake is debited from the user's wallet before the bet is accepted.
+- Odds are locked as a snapshot at bet placement time.
+- Settlement credits winnings via the wallet ledger.
+- Bet records are immutable; status transitions are audited.
 
 ## Design Spec
 

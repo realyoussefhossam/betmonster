@@ -157,7 +157,7 @@ func TestPGStoreDebitWallet(t *testing.T) {
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	require.NoError(t, err)
 
-	tx, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	tx, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "withdrawal", tx.Type)
 	assertDecimalEqual(t, "60", tx.BalanceAfter)
@@ -176,10 +176,10 @@ func TestPGStoreDebitWalletIdempotent(t *testing.T) {
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "100.00", "dx-1", nil)
 	require.NoError(t, err)
 
-	tx1, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	tx1, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1", nil)
 	require.NoError(t, err)
 
-	tx2, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1")
+	tx2, err := store.DebitWallet(ctx, "user-1", "USDT", "40.00", "wd-1", nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, tx1.ID, tx2.ID)
@@ -212,7 +212,7 @@ func TestPGStoreDebitWalletIdempotentConcurrentSharedReference(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			tx, err := store.DebitWallet(ctx, "user-shared", "USDT", "10.00", "wd-shared")
+			tx, err := store.DebitWallet(ctx, "user-shared", "USDT", "10.00", "wd-shared", nil)
 			if err != nil {
 				errCount.Add(1)
 				t.Errorf("debit failed: %v", err)
@@ -250,7 +250,7 @@ func TestPGStoreDebitWalletInsufficientBalance(t *testing.T) {
 	_, err := store.CreditWallet(ctx, "user-1", "USDT", "50.00", "dx-1", nil)
 	require.NoError(t, err)
 
-	_, err = store.DebitWallet(ctx, "user-1", "USDT", "100.00", "wd-1")
+	_, err = store.DebitWallet(ctx, "user-1", "USDT", "100.00", "wd-1", nil)
 	assert.ErrorIs(t, err, ErrInsufficientBalance)
 
 	wallet, err := store.GetWallet(ctx, "user-1", "USDT")
@@ -284,7 +284,7 @@ func TestPGStoreConcurrentCreditDebit(t *testing.T) {
 				t.Errorf("credit %d failed: %v", i, err)
 				return
 			}
-			if _, err := store.DebitWallet(ctx, "user-1", "USDT", "5.00", debitRef); err != nil {
+			if _, err := store.DebitWallet(ctx, "user-1", "USDT", "5.00", debitRef, nil); err != nil {
 				errCount.Add(1)
 				t.Errorf("debit %d failed: %v", i, err)
 			}

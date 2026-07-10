@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -10,6 +11,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
+
+func metadataString(m map[string]any) string {
+	if m == nil || len(m) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
 
 type memoryStore struct {
 	mu          sync.Mutex
@@ -84,6 +96,7 @@ func (s *memoryStore) CreditWallet(ctx context.Context, userID, currency, amount
 		BalanceAfter:  newBalance,
 		Status:        "completed",
 		ReferenceID:   referenceID,
+		Metadata:      metadataString(metadata),
 		CreatedAt:     time.Now(),
 	}
 	s.txns[txn.ID] = txn
@@ -96,7 +109,7 @@ func (s *memoryStore) CreditWallet(ctx context.Context, userID, currency, amount
 	return txn, nil
 }
 
-func (s *memoryStore) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string) (*Transaction, error) {
+func (s *memoryStore) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -139,6 +152,7 @@ func (s *memoryStore) DebitWallet(ctx context.Context, userID, currency, amount,
 		BalanceAfter:  newBalance,
 		Status:        "completed",
 		ReferenceID:   referenceID,
+		Metadata:      metadataString(metadata),
 		CreatedAt:     time.Now(),
 	}
 	s.txns[txn.ID] = txn

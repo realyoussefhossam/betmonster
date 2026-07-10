@@ -2,6 +2,8 @@ package wallet
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -15,6 +17,10 @@ import (
 	"github.com/realyoussefhossam/betmonster/internal/shared/grpcmeta"
 	"github.com/realyoussefhossam/betmonster/internal/wallet/rates"
 )
+
+// serviceCallerID is the sentinel user id propagated by trusted internal
+// services (e.g. the gateway) for privileged, non-end-user calls.
+const serviceCallerID = "gateway"
 
 func defaultFiat(reqFiat string) string {
 	fiat := strings.ToUpper(strings.TrimSpace(reqFiat))
@@ -56,6 +62,17 @@ func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServe
 		pb.WalletService_ReviewWithdrawal_FullMethodName:
 		if !isAdmin {
 			return nil, status.Error(codes.PermissionDenied, "admin metadata required")
+		}
+	case pb.WalletService_DebitWallet_FullMethodName,
+		pb.WalletService_CreditWallet_FullMethodName:
+		// Privileged service methods: only the trusted gateway service may call
+		// these, and it must assert admin scope. End users must never be able to
+		// directly debit or credit wallets.
+		if !isAdmin {
+			return nil, status.Error(codes.PermissionDenied, "admin metadata required")
+		}
+		if callerID != serviceCallerID {
+			return nil, status.Error(codes.PermissionDenied, "service caller metadata required")
 		}
 	case pb.WalletService_GetRates_FullMethodName,
 		pb.WalletService_ProcessDepositWebhook_FullMethodName:
@@ -189,4 +206,51 @@ func (s *GRPCServer) ReviewWithdrawal(ctx context.Context, req *pb.ReviewWithdra
 		return nil, err
 	}
 	return &pb.ReviewWithdrawalResponse{Status: w.Status}, nil
+}
+
+func parseMetadataJSON(s string) (map[string]any, error) {
+	if s == "" {
+		return nil, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func mapWalletError(err error) error {
+	switch {
+	case errors.Is(err, ErrInsufficientBalance):
+		return status.Error(codes.FailedPrecondition, "insufficient balance")
+	case errors.Is(err, ErrWalletNotFound):
+		return status.Error(codes.NotFound, "wallet not found")
+	case err != nil:
+		return status.Error(codes.Internal, "wallet operation failed")
+	}
+	return nil
+}
+
+func (s *GRPCServer) DebitWallet(ctx context.Context, req *pb.DebitWalletRequest) (*pb.DebitWalletResponse, error) {
+	metadata, err := parseMetadataJSON(req.Metadata)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid metadata json")
+	}
+	tx, err := s.service.DebitWallet(ctx, req.UserId, req.Currency, req.Amount, req.ReferenceId, metadata)
+	if err != nil {
+		return nil, mapWalletError(err)
+	}
+	return &pb.DebitWalletResponse{TransactionId: tx.ID, Status: tx.Status}, nil
+}
+
+func (s *GRPCServer) CreditWallet(ctx context.Context, req *pb.CreditWalletRequest) (*pb.CreditWalletResponse, error) {
+	metadata, err := parseMetadataJSON(req.Metadata)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid metadata json")
+	}
+	tx, err := s.service.CreditWallet(ctx, req.UserId, req.Currency, req.Amount, req.ReferenceId, metadata)
+	if err != nil {
+		return nil, mapWalletError(err)
+	}
+	return &pb.CreditWalletResponse{TransactionId: tx.ID, Status: tx.Status}, nil
 }

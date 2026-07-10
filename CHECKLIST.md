@@ -78,7 +78,7 @@
 |---|---|---|
 | **Gateway** | Public API, JWT verification, rate limiting | v1 |
 | **Wallet** | Balances, deposits, withdrawals, ledger | v1 |
-| **Sportsbook** | Events, odds, bet types, settlement | v2 |
+| **Sportsbook** | Events, odds, single moneyline bet placement, settlement | v1 |
 | **Casino** | Games, RNG, provably fair | v2 |
 | **Settlement** | Payouts, bet settlement | v2 |
 | **Risk** | Limits, KYC/AML hooks, geolocation, fraud | v2 |
@@ -104,9 +104,28 @@
 **Wallet service roadmap:** `docs/superpowers/specs/2026-07-04-wallet-microservice-roadmap.md`  
 **Full platform roadmap:** `docs/superpowers/specs/2026-07-04-betmonster-roadmap.md`
 
+## v1 Sportsbook Microservice
+
+### Sportsbook Service
+- [x] Add `cmd/sportsbook` entrypoint.
+- [x] Add Sportsbook Postgres schema and migrations.
+- [x] Add gRPC contract (`PlaceBet`, `GetBet`, `ListBets`, `SettleBet`) and generated code.
+- [x] Implement in-memory and Postgres store.
+- [x] Implement service logic for single moneyline bet placement and settlement.
+- [x] Add gRPC server and scheduler for auto-settlement.
+- [x] Integrate with Wallet `DebitWallet`/`CreditWallet` RPCs.
+- [x] Integrate with Odds/Feed for event/market/outcome validation.
+- [x] Add public sportsbook REST routes in the gateway.
+- [x] Add gateway → sportsbook gRPC client.
+
+### Future Sportsbook Work
+- [ ] Parlays, systems, and live cash-out.
+- [ ] Bet limits, risk checks, and self-exclusion hooks.
+- [ ] Live betting beyond status polling.
+
 ## Future Slices (not in v1)
 
-- [ ] Sportsbook engine (events, odds, bet types, settlement).
+- [ ] Advanced sportsbook features (parlays, live betting, cash-out).
 - [ ] Casino games (crash, slots, provably fair).
 - [ ] Automated withdrawals via hot wallet.
 - [ ] Non-EVM / non-Tron assets (BTC, SOL, LTC, DOGE, XRP).

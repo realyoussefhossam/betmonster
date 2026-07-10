@@ -11,7 +11,7 @@ type Store interface {
 	GetWallet(ctx context.Context, userID, currency string) (*Wallet, error)
 	CreateWallet(ctx context.Context, userID, currency string) (*Wallet, error)
 	CreditWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error)
-	DebitWallet(ctx context.Context, userID, currency, amount, referenceID string) (*Transaction, error)
+	DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error)
 	ReverseDebit(ctx context.Context, transactionID string) (*Transaction, error)
 	GetDepositAddress(ctx context.Context, userID, currency, chain string) (*DepositAddress, error)
 	CreateDepositAddress(ctx context.Context, addr *DepositAddress) (*DepositAddress, error)

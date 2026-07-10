@@ -9,10 +9,10 @@ import (
 )
 
 type Service struct {
-	store              Store
-	xcash              *xcash.Client
-	xcashValidator     *xcash.WebhookValidator
-	supportedPairs     map[string]struct{}
+	store          Store
+	xcash          *xcash.Client
+	xcashValidator *xcash.WebhookValidator
+	supportedPairs map[string]struct{}
 }
 
 func NewService(store Store, xcashClient *xcash.Client, validator *xcash.WebhookValidator, supportedPairs []string) *Service {
@@ -70,8 +70,8 @@ func (s *Service) CreditWallet(ctx context.Context, userID, currency, amount, re
 	return s.store.CreditWallet(ctx, userID, currency, amount, referenceID, metadata)
 }
 
-func (s *Service) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string) (*Transaction, error) {
-	return s.store.DebitWallet(ctx, userID, currency, amount, referenceID)
+func (s *Service) DebitWallet(ctx context.Context, userID, currency, amount, referenceID string, metadata map[string]any) (*Transaction, error) {
+	return s.store.DebitWallet(ctx, userID, currency, amount, referenceID, metadata)
 }
 
 func (s *Service) GetBalance(ctx context.Context, userID, currency string) (*Wallet, error) {

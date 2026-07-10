@@ -28,6 +28,25 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJE
 
 ## Reconciliation
 
+- **2026-07-10**: Plan 005 verified at `HEAD` (`507e2d5`). Done criteria hold:
+  - `internal/proto/sportsbook.proto` and generated `.pb.go` files exist ✅
+  - `internal/sportsbook/migrations/` create the `bets` table ✅
+  - `internal/sportsbook/` implements `Service`, `Store`, gRPC server, and scheduler ✅
+  - `cmd/sportsbook/main.go` builds and starts the service ✅
+  - `Dockerfile.sportsbook` and `docker-compose.yml` sportsbook service added ✅
+  - Gateway exposes `POST /api/bets`, `GET /api/bets`, `GET /api/bets/{id}`, `POST /api/admin/bets/settle` ✅
+  - `make build` creates `bin/sportsbook` ✅
+  - `go test -race ./...` ✅
+  - `docker compose config` exits 0 ✅
+  - Only in-scope files modified ✅
+- **2026-07-10**: Plan 006 verified at `HEAD` (`810c702`). Done criteria hold:
+  - `wallet.proto` has `DebitWallet`/`CreditWallet` RPCs ✅
+  - Generated `.pb.go` files updated ✅
+  - `internal/wallet/server.go` implements handlers ✅
+  - `internal/gateway/wallet_client.go` exposes methods ✅
+  - `go test -race ./internal/wallet/... -run 'TestGRPCServerDebitWallet|TestGRPCServerCreditWallet'` ✅
+  - `go test -race ./...` ✅
+  - `make build` ✅
 - **2026-07-10**: Plan 001 verified at `HEAD` (`ea050d1`). All done criteria still hold:
   - `go test -race ./internal/gateway/...` ✅
   - `go test -race ./internal/oddsfeed/...` ✅
